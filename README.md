@@ -22,7 +22,7 @@ Written with CubeIDE using HAL and CubeMX
 
 -mileage, average speed etc. calculation
 
--stepper motor as RPM meter
+-stepper motor (x27.168) as RPM meter
 
 -GPIO for controls (blinkers, headlights etc.)
 
