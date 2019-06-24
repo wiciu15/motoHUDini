@@ -30,6 +30,7 @@
 #include "ILI9341/ILI9341_GFX.h"
 #include "stm32f1xx_it.h"
 #include "itoa.h"
+#include "adc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,24 +50,38 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+uint32_t RPM=0;
+uint32_t RPMAvgSum=0;
+int32_t lastPosition=0;
+uint32_t RPMAvg_i=0;
+
+uint32_t temp=0;
+uint32_t tempAvg=0;
+uint32_t tempAvg_i=0;
+
 char RPMString[4];
 char VelocityString[3];
+char tempString[4];
+
 int EncNumberOfPulses=4;   //liczba pulsow enkodera na obrot kola
 float WheelCircumference=1.4356;  //obwod kola w m
+uint32_t ADCBUF[3];
+
+int32_t stepsToGo=0;
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 osThreadId LCDMainHandle;
-osThreadId BlinkHandle;
+osThreadId StepperHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-   
+void StepperGoOneStep(uint32_t dir,uint32_t step);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
 void vLCDMain(void const * argument);
-void vBlink(void const * argument);
+void vStepp(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -104,7 +119,7 @@ __weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTask
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-       
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -132,9 +147,9 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(LCDMain, vLCDMain, osPriorityAboveNormal, 0, 1024);
   LCDMainHandle = osThreadCreate(osThread(LCDMain), NULL);
 
-  /* definition and creation of Blink */
-  osThreadDef(Blink, vBlink, osPriorityBelowNormal, 0, 512);
-  BlinkHandle = osThreadCreate(osThread(Blink), NULL);
+  /* definition and creation of Stepper */
+  osThreadDef(Stepper, vStepp, osPriorityBelowNormal, 0, 512);
+  StepperHandle = osThreadCreate(osThread(Stepper), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -174,11 +189,29 @@ void vLCDMain(void const * argument)
   /* Infinite loop */
 	while(1){
 
+			uint32_t tempNow=ADCBUF[0];
+			tempAvg+=tempNow;
+			if(tempAvg_i==9){
+				temp=tempAvg/10;
+				tempAvg=0;
+				tempAvg_i=0;
+				int tempCelsius=100000/temp;
+				char* pTemp=tempString;
+				itoa(tempCelsius,pTemp,10);
+				ILI9341_Draw_Rectangle( 30, 10, 80, 60, BLACK);
+				ILI9341_Draw_Text(pTemp, 30, 10, WHITE, 4, BLACK);
+			}
+			tempAvg_i++;
+
+
 			char* pRPM=RPMString;
-			int RPM=18000/Get_IC_Value();
 			itoa(RPM, pRPM, 10);
+
+
+
 			ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, 250, 120, BLACK);
 			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 8, BLACK);
+
 			float Velocity;
 			char* pVelocity=VelocityString;
 			if(Get_VelocityTime_Value()==0){Velocity=0;}else{
@@ -194,26 +227,138 @@ void vLCDMain(void const * argument)
   /* USER CODE END vLCDMain */
 }
 
-/* USER CODE BEGIN Header_vBlink */
+/* USER CODE BEGIN Header_vStepp */
 /**
-* @brief Function implementing the Blink thread.
+* @brief Function implementing the Stepper thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_vBlink */
-void vBlink(void const * argument)
+/* USER CODE END Header_vStepp */
+void vStepp(void const * argument)
 {
-  /* USER CODE BEGIN vBlink */
-	while(1){
-			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-			osDelay(200);
-		}
-  /* USER CODE END vBlink */
+  /* USER CODE BEGIN vStepp */
+  /* Infinite loop */
+  for(;;)
+  {
+
+	  uint32_t RPMNow=18000/Get_IC_Value();
+	  RPMAvgSum+=RPMNow;
+
+	  if(RPMAvg_i==9){
+	  	RPM=RPMAvgSum/10;
+	  	RPMAvgSum=0;
+	  	RPMAvg_i=0;
+	  	HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+	  	}
+	  RPMAvg_i++;
+
+	  uint32_t StepperPosition=RPM/5;
+
+
+
+	  	if(stepsToGo!=0){
+	  		stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
+	  	}
+	  	else{stepsToGo=(StepperPosition-lastPosition);}
+
+	  	lastPosition=StepperPosition;
+
+	  if(stepsToGo>0){
+	  			StepperGoOneStep(0,2);
+	  			stepsToGo-=1;
+	  		}
+	  		if(stepsToGo<0){
+	  			StepperGoOneStep(1,2);
+	  			stepsToGo+=1;
+	  		}
+	  		if(stepsToGo==0){
+	  			osDelay(20);
+	  		}
+  }
+  /* USER CODE END vStepp */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-     
+void StepperGoOneStep(uint32_t dir, uint32_t speed){
+	if(dir==0){
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+		osDelay(speed);
+	}
+	else{
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+		osDelay(speed);
+
+		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
+		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+		osDelay(speed);
+	}
+}
 /* USER CODE END Application */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

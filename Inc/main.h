@@ -66,11 +66,21 @@ void Error_Handler(void);
 #define TFT_DC_PIN_GPIO_Port GPIOA
 #define LCD_CS_Pin GPIO_PIN_4
 #define LCD_CS_GPIO_Port GPIOA
+#define OIL_TEMP_Pin GPIO_PIN_0
+#define OIL_TEMP_GPIO_Port GPIOB
 #define RPMPin_Pin GPIO_PIN_8
 #define RPMPin_GPIO_Port GPIOA
 #define VPIN_Pin GPIO_PIN_9
 #define VPIN_GPIO_Port GPIOA
 #define VPIN_EXTI_IRQn EXTI9_5_IRQn
+#define STEP1_Pin GPIO_PIN_3
+#define STEP1_GPIO_Port GPIOB
+#define STEP2_Pin GPIO_PIN_4
+#define STEP2_GPIO_Port GPIOB
+#define STEP3_Pin GPIO_PIN_5
+#define STEP3_GPIO_Port GPIOB
+#define STEP4_Pin GPIO_PIN_6
+#define STEP4_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
