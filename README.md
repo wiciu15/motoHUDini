@@ -15,22 +15,18 @@ Written with CubeIDE using HAL and CubeMX
 
 +viewing values on TFT screen
 
++stepper motor (x27.168) as RPM meter
 
-
++temperature sensor (NTC100k connected to ADC with RC filter)
 
 <b>Work still in progress:</b>
 
 -mileage, average speed etc. calculation
 
--stepper motor (x27.168) as RPM meter
-
 -GPIO for controls (blinkers, headlights etc.)
-
--temperature sensor (PT100 with amplifier connected to ADC)
 
 -nice little GUI
 
 -EEPROM for storing configuration and data after powering off
 
 -configuration of device via computer to STM32's USB CDC (Virtual COM Port)
-
