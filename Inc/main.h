@@ -68,6 +68,14 @@ void Error_Handler(void);
 #define LCD_CS_GPIO_Port GPIOA
 #define OIL_TEMP_Pin GPIO_PIN_0
 #define OIL_TEMP_GPIO_Port GPIOB
+#define NEUTRAL_Pin GPIO_PIN_2
+#define NEUTRAL_GPIO_Port GPIOB
+#define BLINK_Pin GPIO_PIN_10
+#define BLINK_GPIO_Port GPIOB
+#define HIBEAM_Pin GPIO_PIN_11
+#define HIBEAM_GPIO_Port GPIOB
+#define EEPROM_CS_Pin GPIO_PIN_12
+#define EEPROM_CS_GPIO_Port GPIOB
 #define RPMPin_Pin GPIO_PIN_8
 #define RPMPin_GPIO_Port GPIOA
 #define VPIN_Pin GPIO_PIN_9
@@ -81,6 +89,10 @@ void Error_Handler(void);
 #define STEP3_GPIO_Port GPIOB
 #define STEP4_Pin GPIO_PIN_6
 #define STEP4_GPIO_Port GPIOB
+#define TFTBCKL_Pin GPIO_PIN_8
+#define TFTBCKL_GPIO_Port GPIOB
+#define LEDBCKL_Pin GPIO_PIN_9
+#define LEDBCKL_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
