@@ -241,7 +241,7 @@ void ILI9341_Draw_Char(char Character, uint8_t X, uint8_t Y, uint16_t Colour, ui
 		}
 		
     // Draw pixels
-		ILI9341_Draw_Rectangle(X, Y, CHAR_WIDTH*Size, CHAR_HEIGHT*Size, Background_Colour);
+		ILI9341_Draw_Rectangle(X-2, Y, CHAR_WIDTH*Size, CHAR_HEIGHT*Size, Background_Colour);
     for (j=0; j<CHAR_WIDTH; j++) {
         for (i=0; i<CHAR_HEIGHT; i++) {
             if (temp[j] & (1<<i)) {			

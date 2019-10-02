@@ -122,11 +122,9 @@ int main(void)
 
   ILI9341_Init();
 
+  //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight on
   ILI9341_Fill_Screen(BLACK);
-  ILI9341_Draw_Text("Uruchamianie", 140, 200, WHITE, 1, BLACK);
-
-  HAL_Delay(1000);
-  ILI9341_Fill_Screen(BLACK);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
 
   /* USER CODE END 2 */
 

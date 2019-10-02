@@ -146,11 +146,11 @@ void MX_FREERTOS_Init(void) {
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of LCDMain */
-  osThreadDef(LCDMain, vLCDMain, osPriorityAboveNormal, 0, 1024);
+  osThreadDef(LCDMain, vLCDMain, osPriorityBelowNormal, 0, 1024);
   LCDMainHandle = osThreadCreate(osThread(LCDMain), NULL);
 
   /* definition and creation of Stepper */
-  osThreadDef(Stepper, vStepp, osPriorityBelowNormal, 0, 512);
+  osThreadDef(Stepper, vStepp, osPriorityAboveNormal, 0, 512);
   StepperHandle = osThreadCreate(osThread(Stepper), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -191,6 +191,8 @@ void vLCDMain(void const * argument)
   /* Infinite loop */
 	while(1){
 
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  //tft backlight on
+		//calculation and drawing of temperature
 			uint32_t tempNow=ADCBUF[0];
 			tempAvg+=tempNow;
 			if(tempAvg_i==9){
@@ -206,21 +208,26 @@ void vLCDMain(void const * argument)
 			tempAvg_i++;
 
 
+			//RPM value drawing
+			if(RPM<15000){
 			char* pRPM=RPMString;
 			itoa(RPM, pRPM, 10);
-
-
-
 			ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, 250, 120, BLACK);
-			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 8, BLACK);
-
+			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, BLACK, 5, WHITE);
+			}
+			//Velocity drawing
 			float Velocity;
 			char* pVelocity=VelocityString;
 			if(Get_VelocityTime_Value()==0){Velocity=0;}else{
 			Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;}
+			if(Velocity<100){
 			itoa(Velocity, pVelocity, 10);
 			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 8, BLACK);
-	  	  	osDelay(200);
+			}
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+
+			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+	  	  	osDelay(100);
 
 
 
@@ -243,18 +250,18 @@ void vStepp(void const * argument)
   for(;;)
   {
 
-	  uint32_t RPMNow=36000/Get_IC_Value();
+	  uint32_t RPMNow=360000/Get_IC_Value();
 	  RPMAvgSum+=RPMNow;
 
 	  if(RPMAvg_i==9){
 	  	RPM=RPMAvgSum/10;
 	  	RPMAvgSum=0;
 	  	RPMAvg_i=0;
-	  	HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+
 	  	}
 	  RPMAvg_i++;
 
-	  uint32_t StepperPosition=RPM/3;
+	  uint32_t StepperPosition=RPM/10;
 
 
 
@@ -266,16 +273,16 @@ void vStepp(void const * argument)
 	  	lastPosition=StepperPosition;
 
 	  if(stepsToGo>0){
-	  			StepperGoOneStep(0,2);
-	  			stepsToGo-=1;
-	  		}
-	  		if(stepsToGo<0){
 	  			StepperGoOneStep(1,2);
+	  			stepsToGo-=1;
+	  	}
+	  if(stepsToGo<0){
+	  			StepperGoOneStep(0,2);
 	  			stepsToGo+=1;
-	  		}
-	  		if(stepsToGo==0){
-	  			osDelay(20);
-	  		}
+	  	}
+	  if(stepsToGo==0){
+	  			osDelay(2);
+		}
   }
   /* USER CODE END vStepp */
 }
