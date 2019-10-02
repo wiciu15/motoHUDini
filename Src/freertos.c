@@ -75,6 +75,7 @@ uint32_t lastStep=1;
 osThreadId defaultTaskHandle;
 osThreadId LCDMainHandle;
 osThreadId StepperHandle;
+osThreadId startupHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -84,6 +85,7 @@ void StepperGoOneStep(uint32_t dir,uint32_t step);
 void StartDefaultTask(void const * argument);
 void vLCDMain(void const * argument);
 void vStepp(void const * argument);
+void vStartup(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -153,6 +155,10 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(Stepper, vStepp, osPriorityAboveNormal, 0, 512);
   StepperHandle = osThreadCreate(osThread(Stepper), NULL);
 
+  /* definition and creation of startup */
+  osThreadDef(startup, vStartup, osPriorityRealtime, 0, 512);
+  startupHandle = osThreadCreate(osThread(startup), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -171,9 +177,14 @@ void StartDefaultTask(void const * argument)
 
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
+	int BacklightOffTime=20;
   for(;;)
   {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight on
     osDelay(1);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);  //dial gauge backlight off
+    osDelay(BacklightOffTime);
+    if(BacklightOffTime!=5)BacklightOffTime--;
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -189,9 +200,19 @@ void vLCDMain(void const * argument)
 {
   /* USER CODE BEGIN vLCDMain */
   /* Infinite loop */
+
+	ILI9341_Init();
+	ILI9341_Fill_Screen(BLACK);
+	ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
+	ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+	osDelay(2000);
+	ILI9341_Fill_Screen(BLACK);
+	osDelay(300);
 	while(1){
 
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  //tft backlight on
+		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  //tft backlight off
+
 		//calculation and drawing of temperature
 			uint32_t tempNow=ADCBUF[0];
 			tempAvg+=tempNow;
@@ -202,8 +223,10 @@ void vLCDMain(void const * argument)
 				int tempCelsius=100000/temp;
 				char* pTemp=tempString;
 				itoa(tempCelsius,pTemp,10);
-				ILI9341_Draw_Rectangle( 30, 10, 80, 60, BLACK);
-				ILI9341_Draw_Text(pTemp, 30, 10, WHITE, 4, BLACK);
+				ILI9341_Draw_Rectangle( 230, 10, 80, 60, BLACK);
+				ILI9341_Draw_Text(pTemp, 190, 210, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 230, 210, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 240, 210, WHITE, 3, BLACK);
 			}
 			tempAvg_i++;
 
@@ -212,8 +235,14 @@ void vLCDMain(void const * argument)
 			if(RPM<15000){
 			char* pRPM=RPMString;
 			itoa(RPM, pRPM, 10);
-			ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, 250, 120, BLACK);
-			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2-40, BLACK, 5, WHITE);
+			if(RPM<1000){
+				ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-25, 5, 60, 40, BLACK);
+			}
+			else{
+			ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2+8, 5, 60, 40, BLACK);
+			}
+			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
+			ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
 			}
 			//Velocity drawing
 			float Velocity;
@@ -223,11 +252,12 @@ void vLCDMain(void const * argument)
 			if(Velocity<100){
 			itoa(Velocity, pVelocity, 10);
 			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 8, BLACK);
+			ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-145, ILI9341_SCREEN_HEIGHT/2+25, WHITE, 2, BLACK);
 			}
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+			//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
 
 			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-	  	  	osDelay(100);
+	  	  	osDelay(200);
 
 
 
@@ -247,6 +277,7 @@ void vStepp(void const * argument)
 {
   /* USER CODE BEGIN vStepp */
   /* Infinite loop */
+	osDelay(4000);
   for(;;)
   {
 
@@ -285,6 +316,26 @@ void vStepp(void const * argument)
 		}
   }
   /* USER CODE END vStepp */
+}
+
+/* USER CODE BEGIN Header_vStartup */
+/**
+* @brief Function implementing the startup thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_vStartup */
+void vStartup(void const * argument)
+{
+  /* USER CODE BEGIN vStartup */
+	for(int i=0;i<800;i++){
+		StepperGoOneStep(1,2);
+	}
+	for(int i=0;i<800;i++){
+			StepperGoOneStep(0,2);
+		}
+	vTaskDelete(startupHandle);
+  /* USER CODE END vStartup */
 }
 
 /* Private application code --------------------------------------------------*/

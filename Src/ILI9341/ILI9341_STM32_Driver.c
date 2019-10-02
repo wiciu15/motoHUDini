@@ -100,8 +100,8 @@ HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);	//CS OFF
 /*Send data (char) to LCD*/
 void ILI9341_SPI_Send(unsigned char SPI_Data)
 {
-//HAL_SPI_Transmit(HSPI_INSTANCE, &SPI_Data, 1, 1);
-HAL_SPI_Transmit_DMA(HSPI_INSTANCE, &SPI_Data,1);
+HAL_SPI_Transmit(HSPI_INSTANCE, &SPI_Data, 1, 1);
+//HAL_SPI_Transmit_DMA(HSPI_INSTANCE, &SPI_Data,1);
 
 }
 
@@ -341,7 +341,7 @@ void ILI9341_Draw_Colour(uint16_t Colour)
 unsigned char TempBuffer[2] = {Colour>>8, Colour};	
 HAL_GPIO_WritePin(LCD_DC_PORT, LCD_DC_PIN, GPIO_PIN_SET);	
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);
-HAL_SPI_Transmit(HSPI_INSTANCE, TempBuffer, 2, 1);	
+HAL_SPI_Transmit(HSPI_INSTANCE, TempBuffer, 2, 1);
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 }
 
@@ -379,12 +379,14 @@ if(Sending_in_Block != 0)
 {
 	for(uint32_t j = 0; j < (Sending_in_Block); j++)
 		{
-		HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size, 10);	
+		HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size, 1);
+
+
 		}
 }
 
 //REMAINDER!
-HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Remainder_from_block, 10);	
+HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Remainder_from_block,1);
 	
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 }
@@ -417,7 +419,8 @@ HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 //XDATA
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);	
 unsigned char Temp_Buffer[4] = {X>>8,X, (X+1)>>8, (X+1)};
-HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer, 4, 1);
+//HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer, 4, 1);
+HAL_SPI_Transmit_DMA(HSPI_INSTANCE, Temp_Buffer, 4);
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 
 //ADDRESS
@@ -430,7 +433,8 @@ HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 //YDATA
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);
 unsigned char Temp_Buffer1[4] = {Y>>8,Y, (Y+1)>>8, (Y+1)};
-HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer1, 4, 1);
+HAL_SPI_Transmit_DMA(HSPI_INSTANCE, Temp_Buffer1, 4);
+//HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer1, 4, 1);
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 
 //ADDRESS	
@@ -443,7 +447,8 @@ HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 //COLOUR	
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);
 unsigned char Temp_Buffer2[2] = {Colour>>8, Colour};
-HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer2, 2, 1);
+//HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer2, 2, 1);
+HAL_SPI_Transmit_DMA(HSPI_INSTANCE, Temp_Buffer2, 2);
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 	
 }

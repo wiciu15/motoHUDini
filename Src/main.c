@@ -118,14 +118,6 @@ int main(void)
 
 
 
-
-
-  ILI9341_Init();
-
-  //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight on
-  ILI9341_Fill_Screen(BLACK);
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
-
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
