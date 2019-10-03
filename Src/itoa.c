@@ -1,5 +1,5 @@
 #include "itoa.h"
-
+/*
 unsigned long itoa(int value, char *sp, int radix) {
     unsigned long len;
     char          tmp[16], *tp = tmp;
@@ -28,3 +28,4 @@ unsigned long itoa(int value, char *sp, int radix) {
 
     return len;
 }
+*/

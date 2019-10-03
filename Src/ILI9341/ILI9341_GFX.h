@@ -62,6 +62,6 @@ void ILI9341_Draw_Filled_Rectangle_Size_Text(uint16_t X0, uint16_t Y0, uint16_t 
 
 //USING CONVERTER: http://www.digole.com/tools/PicturetoC_Hex_converter.php
 //65K colour (2Bytes / Pixel)
-void ILI9341_Draw_Image(const char* Image_Array, uint8_t Orientation);
+void ILI9341_Draw_Image(const char* Image_Array, uint8_t Orientation,uint16_t X1, uint16_t Y1, uint16_t X2, uint16_t Y2);
 
 #endif

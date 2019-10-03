@@ -29,8 +29,12 @@
 #include "ILI9341/ILI9341_STM32_Driver.h"
 #include "ILI9341/ILI9341_GFX.h"
 #include "stm32f1xx_it.h"
-#include "itoa.h"
+//#include "itoa.h"
+#include <stdlib.h>
 #include "adc.h"
+#include "usbd_cdc_if.h"
+#include "rtc.h"
+#include "ILI9341/snow_tiger.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,6 +75,11 @@ uint32_t ADCBUF[3];
 int32_t stepsToGo=0;
 uint32_t lastStep=1;
 
+uint8_t UsbReceivedData[40];
+uint8_t UsbReceivedDataFlag;
+
+uint8_t lastMinute=0;
+
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 osThreadId LCDMainHandle;
@@ -80,6 +89,7 @@ osThreadId startupHandle;
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 void StepperGoOneStep(uint32_t dir,uint32_t step);
+void SendUsbMessage(uint8_t message[]);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -87,6 +97,7 @@ void vLCDMain(void const * argument);
 void vStepp(void const * argument);
 void vStartup(void const * argument);
 
+extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* Hook prototypes */
@@ -144,7 +155,7 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 512);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 64);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of LCDMain */
@@ -152,11 +163,11 @@ void MX_FREERTOS_Init(void) {
   LCDMainHandle = osThreadCreate(osThread(LCDMain), NULL);
 
   /* definition and creation of Stepper */
-  osThreadDef(Stepper, vStepp, osPriorityAboveNormal, 0, 512);
+  osThreadDef(Stepper, vStepp, osPriorityAboveNormal, 0, 64);
   StepperHandle = osThreadCreate(osThread(Stepper), NULL);
 
   /* definition and creation of startup */
-  osThreadDef(startup, vStartup, osPriorityRealtime, 0, 512);
+  osThreadDef(startup, vStartup, osPriorityRealtime, 0, 64);
   startupHandle = osThreadCreate(osThread(startup), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -174,6 +185,8 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
@@ -185,6 +198,10 @@ void StartDefaultTask(void const * argument)
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);  //dial gauge backlight off
     osDelay(BacklightOffTime);
     if(BacklightOffTime!=5)BacklightOffTime--;
+
+    if(UsbReceivedDataFlag){
+    	SendUsbMessage(UsbReceivedData);UsbReceivedDataFlag=0;
+    }
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -203,15 +220,35 @@ void vLCDMain(void const * argument)
 
 	ILI9341_Init();
 	ILI9341_Fill_Screen(BLACK);
+
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+	ILI9341_Draw_Image((const char*)snow_tiger, SCREEN_HORIZONTAL_2,0,0,72,66);
+
 	ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
 	ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+
 	osDelay(2000);
 	ILI9341_Fill_Screen(BLACK);
+
 	osDelay(300);
+
+	///////DRAWING STATIC GRAPHICS AND TEXT///////
+	ILI9341_Draw_Horizontal_Line(1, 49, 319, WHITE);
+	ILI9341_Draw_Horizontal_Line(1, 74, 319, WHITE);
+	ILI9341_Draw_Horizontal_Line(1, 175, 319, WHITE);
+	ILI9341_Draw_Horizontal_Line(1, 210, 319, WHITE);
+	ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);
+	ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
+
+	////////FORCE TIME DRAWING AFTER STARTUP WHEN MINUTE IN RTC = 0/////////
+	RTC_TimeTypeDef sTime;
+	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+	lastMinute=sTime.Minutes+1;
+
 	while(1){
 
-		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  //tft backlight off
+
 
 		//calculation and drawing of temperature
 			uint32_t tempNow=ADCBUF[0];
@@ -223,10 +260,10 @@ void vLCDMain(void const * argument)
 				int tempCelsius=100000/temp;
 				char* pTemp=tempString;
 				itoa(tempCelsius,pTemp,10);
-				ILI9341_Draw_Rectangle( 230, 10, 80, 60, BLACK);
-				ILI9341_Draw_Text(pTemp, 190, 210, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 230, 210, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 240, 210, WHITE, 3, BLACK);
+				ILI9341_Draw_Rectangle( 205, 213, 80, 60, BLACK);
+				ILI9341_Draw_Text(pTemp, 205, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 240, 213, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 250, 213, WHITE, 3, BLACK);
 			}
 			tempAvg_i++;
 
@@ -244,17 +281,36 @@ void vLCDMain(void const * argument)
 			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
 			ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
 			}
+
 			//Velocity drawing
 			float Velocity;
 			char* pVelocity=VelocityString;
 			if(Get_VelocityTime_Value()==0){Velocity=0;}else{
 			Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;}
-			if(Velocity<100){
+			if(Velocity<150){
 			itoa(Velocity, pVelocity, 10);
-			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-100, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 8, BLACK);
-			ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-145, ILI9341_SCREEN_HEIGHT/2+25, WHITE, 2, BLACK);
+			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
+
 			}
-			//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+
+
+			//time drawing
+				RTC_TimeTypeDef sTime;
+				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+
+				char TimeString[6];
+				if(sTime.Minutes<10){
+					sprintf(TimeString,"%d:0%d",sTime.Hours,sTime.Minutes);
+				}else{
+					sprintf(TimeString,"%d:%d",sTime.Hours,sTime.Minutes);
+				}
+
+				char* pTime=TimeString;
+
+				if(lastMinute!=sTime.Minutes){
+					ILI9341_Draw_Text(pTime, ILI9341_SCREEN_WIDTH/2-40, 50, WHITE, 3, BLACK);
+					lastMinute=sTime.Minutes;
+				}
 
 			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 	  	  	osDelay(200);
@@ -340,6 +396,13 @@ void vStartup(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+void SendUsbMessage(uint8_t message[]){
+	uint8_t mesLenght=0;
+		uint8_t mesData [40];
+		mesLenght=sprintf(mesData, "%s\n\r",message);
+		CDC_Transmit_FS(mesData, mesLenght);
+}
 void StepperGoOneStep(uint32_t dir, uint32_t speed){
 	if(dir!=0){  //przeciwnie do wskazowek zegara
 
