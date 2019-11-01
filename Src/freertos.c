@@ -29,6 +29,7 @@
 #include "ILI9341/ILI9341_STM32_Driver.h"
 #include "ILI9341/ILI9341_GFX.h"
 #include "stm32f1xx_it.h"
+#include <math.h>
 //#include "itoa.h"
 #include <stdlib.h>
 #include "adc.h"
@@ -59,13 +60,16 @@ uint32_t RPMAvgSum=0;
 int32_t lastPosition=0;
 uint32_t RPMAvg_i=0;
 
-uint32_t temp=0;
-uint32_t tempAvg=0;
+uint32_t tempOilADC=0;
+uint32_t tempAvgOil=0;
+uint32_t tempAirADC=0;
+uint32_t tempAvgAir=0;
 uint32_t tempAvg_i=0;
 
 char RPMString[4];
 char VelocityString[3];
-char tempString[4];
+char tempOilString[4];
+char tempAirString[4];
 
 int EncNumberOfPulses=4;   //liczba pulsow enkodera na obrot kola
 float WheelCircumference=1.4356;  //obwod kola w m
@@ -251,19 +255,41 @@ void vLCDMain(void const * argument)
 
 
 		//calculation and drawing of temperature
-			uint32_t tempNow=ADCBUF[0];
-			tempAvg+=tempNow;
+			uint32_t tempNowOil=ADCBUF[0];
+			tempAvgOil+=tempNowOil;
+			uint32_t tempNowAir=ADCBUF[1];
+			tempAvgAir+=tempNowAir;
 			if(tempAvg_i==9){
-				temp=tempAvg/10;
-				tempAvg=0;
+				tempOilADC=tempAvgOil/10;
+				tempAvgOil=0;
+				tempAirADC=tempAvgAir/10;
+				tempAvgAir=0;
 				tempAvg_i=0;
-				int tempCelsius=100000/temp;
-				char* pTemp=tempString;
-				itoa(tempCelsius,pTemp,10);
+
+				double voltOil=tempOilADC*(3.29/4096);    //ADC contributes to most error, voltage values are way off
+				double voltAir=tempAirADC*(3.29/4096);
+
+				double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor value R22 into formula
+				double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor value R23 into formula
+
+				int tempCelsiusOil=(1/((log(resistanceOil/100000)/(3950))+(1/298.15)))-273.15;
+				int tempCelsiusAir=(1/((log(resistanceAir/100000)/(3950))+(1/298.15)))-273.15;
+
+				char* pTempOil=tempOilString;
+				char* pTempAir=tempAirString;
+
+				itoa(tempCelsiusOil,pTempOil,10);
+				itoa(tempCelsiusAir,pTempAir,10);
+				//drawing Oil temp
 				ILI9341_Draw_Rectangle( 205, 213, 80, 60, BLACK);
-				ILI9341_Draw_Text(pTemp, 205, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text(pTempOil, 205, 213, WHITE, 3, BLACK);
 				ILI9341_Draw_Text("0", 240, 213, WHITE, 1, BLACK);
 				ILI9341_Draw_Text("C", 250, 213, WHITE, 3, BLACK);
+				//drawing Air temp
+				ILI9341_Draw_Rectangle( 55, 213, 80, 60, BLACK);
+				ILI9341_Draw_Text(pTempAir, 55, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 90, 213, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 100, 213, WHITE, 3, BLACK);
 			}
 			tempAvg_i++;
 
