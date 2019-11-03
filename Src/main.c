@@ -116,6 +116,8 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim2);
   __HAL_TIM_DISABLE(&htim2);
 
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  //tft backlight off
+
 
 
   /* USER CODE END 2 */

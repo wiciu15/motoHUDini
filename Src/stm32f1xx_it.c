@@ -24,6 +24,8 @@
 #include "cmsis_os.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "freertos.h"
+#include "EEPROM_SPI.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,13 +47,14 @@
 /* USER CODE BEGIN PV */
 uint32_t input_capture;
 uint32_t VelocityTime;
+uint16_t WheelSpinCounter=0;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-uint32_t Get_IC_Value();
-uint32_t Get_VelocityTime_Value();
+//uint32_t Get_IC_Value();
+//uint32_t Get_VelocityTime_Value();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -71,7 +74,12 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN EV */
+extern double mileage;
+extern double trip;
 
+
+extern int EncNumberOfPulses;   //liczba pulsow enkodera na obrot kola
+extern float WheelCircumference;  //obwod kola w m
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -257,7 +265,16 @@ void EXTI9_5_IRQHandler(void)
 	        else{
 	        VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
 	        __HAL_TIM_SET_COUNTER(&htim2,0);
+	       WheelSpinCounter++;
+	       if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
+	    	   WheelSpinCounter=0;
+	    	   mileage+=(WheelCircumference*100)/1000;
+	    	   trip+=(WheelCircumference*100)/1000;
+	    	   //EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //can't write to EEPROM in interrupt - config_assert
+	    	   //EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);
+	       	   }
 	        }
+
 	   // }
   /* USER CODE END EXTI9_5_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);

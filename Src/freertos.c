@@ -25,7 +25,8 @@
 #include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */     
+/* USER CODE BEGIN Includes */
+#include "freertos.h"
 #include "ILI9341/ILI9341_STM32_Driver.h"
 #include "ILI9341/ILI9341_GFX.h"
 #include "stm32f1xx_it.h"
@@ -36,6 +37,8 @@
 #include "usbd_cdc_if.h"
 #include "rtc.h"
 #include "ILI9341/snow_tiger.h"
+#include "EEPROM_SPI.h"
+#include "spi.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +62,8 @@ uint32_t RPM=0;
 uint32_t RPMAvgSum=0;
 int32_t lastPosition=0;
 uint32_t RPMAvg_i=0;
+uint32_t lastRPM=1;
+uint8_t lastVelocity=1;
 
 uint32_t tempOilADC=0;
 uint32_t tempAvgOil=0;
@@ -70,6 +75,8 @@ char RPMString[4];
 char VelocityString[3];
 char tempOilString[4];
 char tempAirString[4];
+char mileageString[10];
+char tripString[10];
 
 int EncNumberOfPulses=4;   //liczba pulsow enkodera na obrot kola
 float WheelCircumference=1.4356;  //obwod kola w m
@@ -83,6 +90,13 @@ uint8_t UsbReceivedData[40];
 uint8_t UsbReceivedDataFlag;
 
 uint8_t lastMinute=0;
+
+double mileage=0;
+double trip=0;
+double lastTrip=0;
+
+	extern uint8_t RxBuffer[8];       //eeprom receive data buffer
+	extern uint8_t EEPROM_StatusByte;
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
@@ -226,7 +240,7 @@ void vLCDMain(void const * argument)
 	ILI9341_Fill_Screen(BLACK);
 
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
-	ILI9341_Draw_Image((const char*)snow_tiger, SCREEN_HORIZONTAL_2,0,0,72,66);
+	//ILI9341_Draw_Image((const char*)snow_tiger, SCREEN_HORIZONTAL_2,0,0,72,66);
 
 	ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
 	ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
@@ -250,6 +264,24 @@ void vLCDMain(void const * argument)
 	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 	lastMinute=sTime.Minutes+1;
 
+
+	/////////EEPROM CFG////////
+	EEPROM_SPI_INIT(&hspi2);
+
+	//double m=606.66;
+	//double t=123.33;
+	//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)8, (uint16_t)8);
+	//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)16, (uint16_t)8);
+
+	//read saved mileage and trip from eeprom
+	EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)8, (uint16_t)8); //read mileage as uint8_t array from adress 8
+	memcpy(&mileage, RxBuffer, sizeof(double));					//cast uint8_t array to double
+	EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)16, (uint16_t)8);
+	memcpy(&trip, RxBuffer, sizeof(double));
+
+
+
+
 	while(1){
 
 
@@ -259,10 +291,10 @@ void vLCDMain(void const * argument)
 			tempAvgOil+=tempNowOil;
 			uint32_t tempNowAir=ADCBUF[1];
 			tempAvgAir+=tempNowAir;
-			if(tempAvg_i==9){
-				tempOilADC=tempAvgOil/10;
+			if(tempAvg_i==19){
+				tempOilADC=tempAvgOil/20;
 				tempAvgOil=0;
-				tempAirADC=tempAvgAir/10;
+				tempAirADC=tempAvgAir/20;
 				tempAvgAir=0;
 				tempAvg_i=0;
 
@@ -282,20 +314,22 @@ void vLCDMain(void const * argument)
 				itoa(tempCelsiusAir,pTempAir,10);
 				//drawing Oil temp
 				ILI9341_Draw_Rectangle( 205, 213, 80, 60, BLACK);
-				ILI9341_Draw_Text(pTempOil, 205, 213, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 240, 213, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 250, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 225, WHITE, 1, BLACK);
+				ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 320-28, 213, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 320-19, 213, WHITE, 3, BLACK);
 				//drawing Air temp
-				ILI9341_Draw_Rectangle( 55, 213, 80, 60, BLACK);
-				ILI9341_Draw_Text(pTempAir, 55, 213, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 90, 213, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 100, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Rectangle( 35, 213, 80, 60, BLACK);
+				ILI9341_Draw_Text(pTempAir, 10, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 10+strlen(pTempAir)*19, 213, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 18+strlen(pTempAir)*19, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("air", 45+strlen(pTempAir)*19, 225, WHITE, 1, BLACK);
 			}
 			tempAvg_i++;
 
 
 			//RPM value drawing
-			if(RPM<15000){
+			if(RPM<15000 && RPM!=lastRPM){
 			char* pRPM=RPMString;
 			itoa(RPM, pRPM, 10);
 			if(RPM<1000){
@@ -306,17 +340,20 @@ void vLCDMain(void const * argument)
 			}
 			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
 			ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
+			lastRPM=RPM;
 			}
 
 			//Velocity drawing
-			float Velocity;
+			uint8_t Velocity;
 			char* pVelocity=VelocityString;
 			if(Get_VelocityTime_Value()==0){Velocity=0;}else{
 			Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;}
-			if(Velocity<150){
+			if(Velocity<150 && Velocity!=lastVelocity){
 			itoa(Velocity, pVelocity, 10);
+			if(lastVelocity>100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+			if(lastVelocity>10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
 			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
-
+			lastVelocity=Velocity;
 			}
 
 
@@ -338,8 +375,36 @@ void vLCDMain(void const * argument)
 					lastMinute=sTime.Minutes;
 				}
 
-			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-	  	  	osDelay(200);
+
+			//mileage and trip drawing
+				if(trip!=lastTrip){
+				char* pMileage=mileageString;
+				itoa(mileage, pMileage, 10);
+				ILI9341_Draw_Text(pMileage, 10, 180, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("km", 10+(strlen(pMileage)*19), 192, WHITE, 1, BLACK);
+
+
+				char* pTrip=tripString;
+				itoa(trip, pTrip, 10);
+				ILI9341_Draw_Text("trip", (320-(strlen(pTrip)*19)-30-35), 184, WHITE, 1, BLACK);   //trip is right aligned so lenght of the string must be subtracted in X dir
+				ILI9341_Draw_Text(pTrip, (320-(strlen(pTrip)*19)-30), 180, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("km",(320-30) , 192, WHITE, 1, BLACK);
+
+				if(lastTrip!=0){
+					if(trip>1000){       //trip zeroes automatically every 1000km
+						trip=trip-1000;
+						}
+
+					EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //write mileage and trip to eeprom
+					EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);     //after 100 wheel revolutions
+
+				}
+
+				lastTrip=trip;
+				}
+
+			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
+	  	  	osDelay(250);                             //main screen refresh delay in ms
 
 
 

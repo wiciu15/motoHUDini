@@ -447,8 +447,8 @@ HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 //COLOUR	
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);
 unsigned char Temp_Buffer2[2] = {Colour>>8, Colour};
-//HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer2, 2, 1);
-HAL_SPI_Transmit_DMA(HSPI_INSTANCE, Temp_Buffer2, 2);
+HAL_SPI_Transmit(HSPI_INSTANCE, Temp_Buffer2, 2, 1);
+//HAL_SPI_Transmit_DMA(HSPI_INSTANCE, Temp_Buffer2, 2);
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 	
 }
