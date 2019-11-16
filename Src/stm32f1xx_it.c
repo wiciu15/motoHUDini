@@ -47,6 +47,8 @@
 /* USER CODE BEGIN PV */
 uint32_t input_capture;
 uint32_t VelocityTime;
+uint32_t VelocityAvgI=0;
+uint32_t VelocityTimeSum=0;
 uint16_t WheelSpinCounter=0;
 
 /* USER CODE END PV */
@@ -259,12 +261,20 @@ void EXTI9_5_IRQHandler(void)
 
 //	        EXTI->PR1 = 1 << 9;
 
-	        if(__HAL_TIM_GET_COUNTER(&htim2)<5){
+	        if(__HAL_TIM_GET_COUNTER(&htim2)==0){
 	        	__HAL_TIM_ENABLE(&htim2);
 	        }
 	        else{
-	        VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
+	        	if(__HAL_TIM_GET_COUNTER(&htim2)>60){       //noise filter-24ms for a wheel revolution is just not possible
+	        VelocityTimeSum+=__HAL_TIM_GET_COUNTER(&htim2);
+	        VelocityAvgI++;
+	        	if(VelocityAvgI==3){
+	        		VelocityTime=VelocityTimeSum/4;
+	        		VelocityTimeSum=0;
+	        		VelocityAvgI=0;
+	        	}
 	        __HAL_TIM_SET_COUNTER(&htim2,0);
+
 	       WheelSpinCounter++;
 	       if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
 	    	   WheelSpinCounter=0;
@@ -273,6 +283,8 @@ void EXTI9_5_IRQHandler(void)
 	    	   //EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //can't write to EEPROM in interrupt - config_assert
 	    	   //EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);
 	       	   }
+	        }
+
 	        }
 
 	   // }

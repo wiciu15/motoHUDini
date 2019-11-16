@@ -350,8 +350,8 @@ void vLCDMain(void const * argument)
 			Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;}
 			if(Velocity<150 && Velocity!=lastVelocity){
 			itoa(Velocity, pVelocity, 10);
-			if(lastVelocity>100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
-			if(lastVelocity>10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+			if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+			if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
 			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
 			lastVelocity=Velocity;
 			}
