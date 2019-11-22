@@ -50,6 +50,8 @@
 #include "5x5_font.h"
 #include "spi.h"
 
+#define CHECK_BIT(var,pos) (((var)>>(pos)) & 1)
+
 /*Draw hollow circle at X,Y location with specified radius and colour. X and Y represent circles center */
 void ILI9341_Draw_Hollow_Circle(uint16_t X, uint16_t Y, uint16_t Radius, uint16_t Colour)
 {
@@ -362,6 +364,35 @@ void ILI9341_Draw_Image(const char* Image_Array, uint8_t Orientation,uint16_t X1
 		}
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 	}
+}
+
+void ILI9341_DrawBitmap(const char* Image_Array,uint16_t X1, uint16_t Y1, uint16_t Width, uint16_t Height,uint16_t Background_Color){
+
+	ILI9341_Set_Address(X1,Y1,X1+Width-1,Y1+Height);
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+
+	unsigned char Temp_small_buffer[BURST_MAX_SIZE];
+			uint32_t counter = 0;
+			for(uint32_t i = 0; i < (Width*Height*2)/BURST_MAX_SIZE; i++)
+			{
+					for(uint32_t k = 0; k< BURST_MAX_SIZE; k+=2)
+					{
+							if((Image_Array[(counter+k)/16])&1<<(7-((k/2)%8))){
+								Temp_small_buffer[k]=Background_Color>>8;
+								Temp_small_buffer[k+1]=Background_Color;
+							}
+							else{
+								Temp_small_buffer[k]=0xFF;
+								Temp_small_buffer[k+1]=0xFF;
+							}
+					}
+					HAL_SPI_Transmit(&hspi1, (unsigned char*)Temp_small_buffer, BURST_MAX_SIZE, 10);
+					counter += BURST_MAX_SIZE;
+
+			}
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 }
 
 

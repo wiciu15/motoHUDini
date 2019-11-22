@@ -36,7 +36,7 @@
 #include "adc.h"
 #include "usbd_cdc_if.h"
 #include "rtc.h"
-#include "ILI9341/snow_tiger.h"
+#include "ILI9341/derbilogo.h"
 #include "EEPROM_SPI.h"
 #include "spi.h"
 /* USER CODE END Includes */
@@ -61,6 +61,7 @@
 uint32_t RPM=0;
 uint32_t RPMAvgSum=0;
 int32_t lastPosition=0;
+int RPMNow=0;
 uint32_t RPMAvg_i=0;
 uint32_t lastRPM=1;
 uint8_t lastVelocity=1;
@@ -240,10 +241,14 @@ void vLCDMain(void const * argument)
 	ILI9341_Fill_Screen(BLACK);
 
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
-	//ILI9341_Draw_Image((const char*)snow_tiger, SCREEN_HORIZONTAL_2,0,0,72,66);
 
-	ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
-	ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
+
+	ILI9341_Draw_Rectangle(56, 50, 40, 120, LIGHTGREY);
+	ILI9341_Draw_Rectangle(96, 50, 155, 120, RED);
+	ILI9341_DrawBitmap((const char*)logo, 125,70,96,78,RED);
+
+	//ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
+	//ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
 
 	osDelay(2000);
@@ -329,18 +334,18 @@ void vLCDMain(void const * argument)
 
 
 			//RPM value drawing
-			if(RPM<15000 && RPM!=lastRPM){
+			if(RPM<20000 && RPM!=lastRPM){
+			lastRPM=RPM;
 			char* pRPM=RPMString;
 			itoa(RPM, pRPM, 10);
-			if(RPM<1000){
-				ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-25, 5, 60, 40, BLACK);
-			}
+			if(RPM<100)ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-80, 5, 60, 40, BLACK);
+			if(RPM<1000){ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-25, 5, 60, 40, BLACK);}
 			else{
 			ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2+8, 5, 60, 40, BLACK);
 			}
 			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
 			ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
-			lastRPM=RPM;
+
 			}
 
 			//Velocity drawing
@@ -424,22 +429,25 @@ void vStepp(void const * argument)
 {
   /* USER CODE BEGIN vStepp */
   /* Infinite loop */
-	osDelay(4000);
+	osDelay(3000);
   for(;;)
   {
+	  float RPMfreq=100000/(Get_IC_Value());
+	  RPMNow=(RPMfreq*10.27)-255;
+	  if(RPMNow>260)RPMAvgSum+=RPMNow;
 
-	  uint32_t RPMNow=360000/Get_IC_Value();
-	  RPMAvgSum+=RPMNow;
-
-	  if(RPMAvg_i==9){
-	  	RPM=RPMAvgSum/10;
+	  RPMAvg_i++;
+	  if(RPMAvg_i==20){
+	  	RPM=RPMAvgSum/20;
+	  	RPM=RPM/25;
+	  	RPM=RPM*25;
 	  	RPMAvgSum=0;
 	  	RPMAvg_i=0;
-
 	  	}
-	  RPMAvg_i++;
 
-	  uint32_t StepperPosition=RPM/10;
+
+
+	  uint32_t StepperPosition=RPM/25;
 
 
 
