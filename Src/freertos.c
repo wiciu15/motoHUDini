@@ -235,33 +235,34 @@ void StartDefaultTask(void const * argument)
 void vLCDMain(void const * argument)
 {
   /* USER CODE BEGIN vLCDMain */
-  /* Infinite loop */
+
 
 	ILI9341_Init();
-	ILI9341_Fill_Screen(BLACK);
+	ILI9341_Fill_Screen(BLACK);  //LCD init and graphics memory cleanup
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
 
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
 
 
+	/////DRAWING SPLASH SCREEN WITH LOGO/////
 	ILI9341_Draw_Rectangle(56, 50, 40, 120, LIGHTGREY);
 	ILI9341_Draw_Rectangle(96, 50, 155, 120, RED);
 	ILI9341_DrawBitmap((const char*)logo, 125,70,96,78,RED);
 
 	//ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
 	//ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight on
+
 
 	osDelay(2000);
-	ILI9341_Fill_Screen(BLACK);
+	ILI9341_Draw_Rectangle(50, 50, 205, 130, BLACK);  //wait 2s and get rid of the logo
 
-	osDelay(300);
+
 
 	///////DRAWING STATIC GRAPHICS AND TEXT///////
-	ILI9341_Draw_Horizontal_Line(1, 49, 319, WHITE);
+	ILI9341_Draw_Horizontal_Line(1, 49, 319, WHITE);     //horizontal lines
 	ILI9341_Draw_Horizontal_Line(1, 74, 319, WHITE);
 	ILI9341_Draw_Horizontal_Line(1, 175, 319, WHITE);
 	ILI9341_Draw_Horizontal_Line(1, 210, 319, WHITE);
-	ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);
+	ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
 	ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
 
 	////////FORCE TIME DRAWING AFTER STARTUP WHEN MINUTE IN RTC = 0/////////
@@ -273,7 +274,7 @@ void vLCDMain(void const * argument)
 	/////////EEPROM CFG////////
 	EEPROM_SPI_INIT(&hspi2);
 
-	//double m=606.66;
+	//double m=606.66;    //write initial values to blank EEPROM
 	//double t=123.33;
 	//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)8, (uint16_t)8);
 	//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)16, (uint16_t)8);
@@ -292,30 +293,30 @@ void vLCDMain(void const * argument)
 
 
 		//calculation and drawing of temperature
-			uint32_t tempNowOil=ADCBUF[0];
+			uint32_t tempNowOil=ADCBUF[0];    //number of ADC samples
 			tempAvgOil+=tempNowOil;
 			uint32_t tempNowAir=ADCBUF[1];
 			tempAvgAir+=tempNowAir;
 			if(tempAvg_i==19){
-				tempOilADC=tempAvgOil/20;
+				tempOilADC=tempAvgOil/20;     //averaging samples from ADC
 				tempAvgOil=0;
 				tempAirADC=tempAvgAir/20;
 				tempAvgAir=0;
 				tempAvg_i=0;
 
-				double voltOil=tempOilADC*(3.29/4096);    //ADC contributes to most error, voltage values are way off
+				double voltOil=tempOilADC*(3.29/4096);    //calculate voltage value
 				double voltAir=tempAirADC*(3.29/4096);
 
-				double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor value R22 into formula
-				double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor value R23 into formula
+				double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
+				double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
 
-				int tempCelsiusOil=(1/((log(resistanceOil/100000)/(3950))+(1/298.15)))-273.15;
+				int tempCelsiusOil=(1/((log(resistanceOil/100000)/(3950))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
 				int tempCelsiusAir=(1/((log(resistanceAir/100000)/(3950))+(1/298.15)))-273.15;
 
 				char* pTempOil=tempOilString;
 				char* pTempAir=tempAirString;
 
-				itoa(tempCelsiusOil,pTempOil,10);
+				itoa(tempCelsiusOil,pTempOil,10);     //int to string
 				itoa(tempCelsiusAir,pTempAir,10);
 				//drawing Oil temp
 				ILI9341_Draw_Rectangle( 205, 213, 80, 60, BLACK);
@@ -334,7 +335,7 @@ void vLCDMain(void const * argument)
 
 
 			//RPM value drawing
-			if(RPM<20000 && RPM!=lastRPM){
+			if(RPM<20000 && RPM!=lastRPM){   //RPM is calculated in vStepp task
 			lastRPM=RPM;
 			char* pRPM=RPMString;
 			itoa(RPM, pRPM, 10);
@@ -429,7 +430,7 @@ void vStepp(void const * argument)
 {
   /* USER CODE BEGIN vStepp */
   /* Infinite loop */
-	osDelay(3000);
+	osDelay(4000);  //startup delay for dial calibration in vStartup task
   for(;;)
   {
 	  float RPMfreq=100000/(Get_IC_Value());
@@ -483,11 +484,16 @@ void vStepp(void const * argument)
 void vStartup(void const * argument)
 {
   /* USER CODE BEGIN vStartup */
+
+//////Dial calibration during startup////////
+
 	for(int i=0;i<800;i++){
 		StepperGoOneStep(1,2);
+		lastPosition++;
 	}
 	for(int i=0;i<800;i++){
 			StepperGoOneStep(0,2);
+			lastPosition--;
 		}
 	vTaskDelete(startupHandle);
   /* USER CODE END vStartup */

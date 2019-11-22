@@ -379,7 +379,7 @@ if(Sending_in_Block != 0)
 {
 	for(uint32_t j = 0; j < (Sending_in_Block); j++)
 		{
-		HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size, 1);
+		HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size,1);
 
 
 		}

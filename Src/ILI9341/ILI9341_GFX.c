@@ -388,10 +388,26 @@ void ILI9341_DrawBitmap(const char* Image_Array,uint16_t X1, uint16_t Y1, uint16
 								Temp_small_buffer[k+1]=0xFF;
 							}
 					}
-					HAL_SPI_Transmit(&hspi1, (unsigned char*)Temp_small_buffer, BURST_MAX_SIZE, 10);
+					HAL_SPI_Transmit_DMA(&hspi1, (unsigned char*)Temp_small_buffer, BURST_MAX_SIZE);
 					counter += BURST_MAX_SIZE;
 
 			}
+			uint32_t Remainder_from_block = ((Width*Height*2))%BURST_MAX_SIZE;
+			unsigned char temp_remainder[Remainder_from_block];
+			for(uint32_t l=0;l<Remainder_from_block;l++){
+				for(uint32_t k = 0; k< Remainder_from_block; k+=2)
+									{
+											if((Image_Array[(counter+k)/16])&1<<(7-((k/2)%8))){
+												temp_remainder[k]=Background_Color>>8;
+												temp_remainder[k+1]=Background_Color;
+											}
+											else{
+												temp_remainder[k]=0xFF;
+												temp_remainder[k+1]=0xFF;
+											}
+									}
+			}
+			HAL_SPI_Transmit(&hspi1, (unsigned char *)temp_remainder, Remainder_from_block,1);
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 }
 
