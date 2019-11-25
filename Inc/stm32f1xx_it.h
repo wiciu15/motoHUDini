@@ -63,7 +63,6 @@ void TIM1_CC_IRQHandler(void);
 void TIM2_IRQHandler(void);
 void TIM4_IRQHandler(void);
 void SPI1_IRQHandler(void);
-
 /* USER CODE BEGIN EFP */
 uint32_t Get_IC_Value();
 uint32_t Get_VelocityTime_Value();

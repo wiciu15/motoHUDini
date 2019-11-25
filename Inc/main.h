@@ -58,6 +58,10 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define BTN_MODE_Pin GPIO_PIN_0
+#define BTN_MODE_GPIO_Port GPIOA
+#define BTN_SET_Pin GPIO_PIN_1
+#define BTN_SET_GPIO_Port GPIOA
 #define TFT_RESET_PIN_Pin GPIO_PIN_2
 #define TFT_RESET_PIN_GPIO_Port GPIOA
 #define TFT_DC_PIN_Pin GPIO_PIN_3

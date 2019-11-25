@@ -25,7 +25,7 @@
 #include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+/* USER CODE BEGIN Includes */     
 #include "freertos.h"
 #include "ILI9341/ILI9341_STM32_Driver.h"
 #include "ILI9341/ILI9341_GFX.h"
@@ -66,6 +66,10 @@ uint32_t RPMAvg_i=0;
 uint32_t lastRPM=1;
 uint8_t lastVelocity=1;
 
+uint32_t tempNowOil=0;
+uint32_t tempNowAir=0;
+double voltOil=0;
+double voltAir=0;
 uint32_t tempOilADC=0;
 uint32_t tempAvgOil=0;
 uint32_t tempAirADC=0;
@@ -98,6 +102,14 @@ double lastTrip=0;
 
 	extern uint8_t RxBuffer[8];       //eeprom receive data buffer
 	extern uint8_t EEPROM_StatusByte;
+
+
+uint8_t btnModeSec=0;
+uint8_t btnSetSec=0;
+uint8_t timeSettingMode=0;
+uint8_t timeSettingModeHour=0;
+uint8_t timeSettingModeMinute=0;
+
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
@@ -153,7 +165,7 @@ __weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTask
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
+
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -209,18 +221,11 @@ void StartDefaultTask(void const * argument)
 
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
-	int BacklightOffTime=20;
+
   for(;;)
   {
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight on
-    osDelay(1);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);  //dial gauge backlight off
-    osDelay(BacklightOffTime);
-    if(BacklightOffTime!=5)BacklightOffTime--;
+osDelay(1000);
 
-    if(UsbReceivedDataFlag){
-    	SendUsbMessage(UsbReceivedData);UsbReceivedDataFlag=0;
-    }
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -239,7 +244,10 @@ void vLCDMain(void const * argument)
 
 	ILI9341_Init();
 	ILI9341_Fill_Screen(BLACK);  //LCD init and graphics memory cleanup
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
+
+	/////BACKLIGHT
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight is delayed-switching on now
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
 
 
 
@@ -254,6 +262,88 @@ void vLCDMain(void const * argument)
 
 	osDelay(2000);
 	ILI9341_Draw_Rectangle(50, 50, 205, 130, BLACK);  //wait 2s and get rid of the logo
+
+	////RTC power failure/////
+		if(HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1)!=0x32FE){
+			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+			ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+			ILI9341_Draw_Text("Constant power lost", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+			ILI9341_Draw_Text("Set new time", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
+			HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x32FE);
+			osDelay(3000);
+			ILI9341_Fill_Screen(BLACK);
+		}
+
+
+		HAL_ADC_Stop(&hadc1);
+		HAL_ADCEx_Calibration_Start(&hadc1);
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
+
+		/////////EEPROM CFG////////
+			EEPROM_SPI_INIT(&hspi2);
+
+
+			//double m=606.66;    //write initial values to blank EEPROM
+			//double t=123.33;
+			//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)16, (uint16_t)8);
+			//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)24, (uint16_t)8);
+
+			//read saved mileage and trip from eeprom
+
+			if(EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)16, (uint16_t)8)==EEPROM_STATUS_COMPLETE){ //read mileage as uint8_t array from address 16
+			memcpy(&mileage, RxBuffer, sizeof(double));	  //cast uint8_t array to double
+			}
+			else{                                                                                            //communication error
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+				ILI9341_Draw_Text("Configure again", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
+				mileage=0;
+				osDelay(3000);
+				ILI9341_Fill_Screen(BLACK);
+			}
+			if(mileage<0 || mileage >1000000){                                                                //mileage value incorrect
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+				ILI9341_Draw_Text("Mileage value incorrect", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+				mileage=0;
+				osDelay(3000);
+				ILI9341_Fill_Screen(BLACK);
+			}
+			if(mileage!=mileage){                                                                               //EEPROM value not a number(NaN)
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+				ILI9341_Draw_Text("Configure again", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
+				mileage=0;
+				//EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);
+				osDelay(3000);
+				ILI9341_Fill_Screen(BLACK);
+			}
+
+
+			EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)24, (uint16_t)8);   //read trip from eeprom
+			memcpy(&trip, RxBuffer, sizeof(double));
+
+
+			if(trip<0 || trip >10000){       //EEPROM value invalid
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+				trip=0;
+				EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);
+				osDelay(3000);
+				ILI9341_Fill_Screen(BLACK);
+			}
+			if(trip!=trip){                                                                               //EEPROM value not a number(NaN)
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+				trip=0;
+				EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);
+				osDelay(3000);
+				ILI9341_Fill_Screen(BLACK);
+			}
 
 
 
@@ -271,19 +361,7 @@ void vLCDMain(void const * argument)
 	lastMinute=sTime.Minutes+1;
 
 
-	/////////EEPROM CFG////////
-	EEPROM_SPI_INIT(&hspi2);
 
-	//double m=606.66;    //write initial values to blank EEPROM
-	//double t=123.33;
-	//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)8, (uint16_t)8);
-	//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)16, (uint16_t)8);
-
-	//read saved mileage and trip from eeprom
-	EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)8, (uint16_t)8); //read mileage as uint8_t array from adress 8
-	memcpy(&mileage, RxBuffer, sizeof(double));					//cast uint8_t array to double
-	EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)16, (uint16_t)8);
-	memcpy(&trip, RxBuffer, sizeof(double));
 
 
 
@@ -293,9 +371,9 @@ void vLCDMain(void const * argument)
 
 
 		//calculation and drawing of temperature
-			uint32_t tempNowOil=ADCBUF[0];    //number of ADC samples
+			tempNowOil=ADCBUF[0];    //number of ADC samples
 			tempAvgOil+=tempNowOil;
-			uint32_t tempNowAir=ADCBUF[1];
+			tempNowAir=ADCBUF[1];
 			tempAvgAir+=tempNowAir;
 			if(tempAvg_i==19){
 				tempOilADC=tempAvgOil/20;     //averaging samples from ADC
@@ -304,8 +382,8 @@ void vLCDMain(void const * argument)
 				tempAvgAir=0;
 				tempAvg_i=0;
 
-				double voltOil=tempOilADC*(3.29/4096);    //calculate voltage value
-				double voltAir=tempAirADC*(3.29/4096);
+				voltOil=tempOilADC*(3.29/4096);    //calculate voltage value
+				voltAir=tempAirADC*(3.29/4096);
 
 				double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
 				double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
@@ -364,9 +442,11 @@ void vLCDMain(void const * argument)
 
 
 			//time drawing
-				RTC_TimeTypeDef sTime;
+			if(timeSettingMode==0){
+			RTC_TimeTypeDef sTime;
 				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 
+				if(lastMinute!=sTime.Minutes){
 				char TimeString[6];
 				if(sTime.Minutes<10){
 					sprintf(TimeString,"%d:0%d",sTime.Hours,sTime.Minutes);
@@ -376,10 +456,12 @@ void vLCDMain(void const * argument)
 
 				char* pTime=TimeString;
 
-				if(lastMinute!=sTime.Minutes){
+
+					ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, 50, 100,24, BLACK);
 					ILI9341_Draw_Text(pTime, ILI9341_SCREEN_WIDTH/2-40, 50, WHITE, 3, BLACK);
 					lastMinute=sTime.Minutes;
 				}
+			}
 
 
 			//mileage and trip drawing
@@ -401,13 +483,91 @@ void vLCDMain(void const * argument)
 						trip=trip-1000;
 						}
 
-					EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //write mileage and trip to eeprom
-					EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);     //after 100 wheel revolutions
+					EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);   //write mileage and trip to eeprom
+					EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);     //after 100 wheel revolutions
 
 				}
 
 				lastTrip=trip;
 				}
+
+			////TIME SETTING
+
+
+				if(timeSettingMode==1){   //minute setting
+					char TimeStringEdit[6];
+					if(timeSettingModeMinute<10){
+						sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+					}
+					else{
+						sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+					}
+					char* pTimeEdit=TimeStringEdit;
+					ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
+
+
+					if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
+						timeSettingModeMinute++;
+						if(timeSettingModeMinute==60)timeSettingModeMinute=0;
+						}
+					if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET)timeSettingMode=2;
+
+				}
+
+				if(timeSettingMode==2){   //hour setting
+									char TimeStringEdit[6];
+									if(timeSettingModeMinute<10){
+										sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+									}
+									else{
+										sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+									}
+
+									char* pTimeEdit=TimeStringEdit;
+									ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
+
+									if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
+										timeSettingModeHour++;
+										if(timeSettingModeHour==24)timeSettingModeHour=0;
+									}
+
+
+									if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
+										timeSettingMode=0;
+										RTC_TimeTypeDef sTimeEdited;
+										sTimeEdited.Hours=timeSettingModeHour;
+										sTimeEdited.Minutes=timeSettingModeMinute;
+										sTimeEdited.Seconds=0;
+										HAL_RTC_SetTime(&hrtc, &sTimeEdited, RTC_FORMAT_BIN);
+										lastMinute=timeSettingModeMinute+1;
+									}
+
+								}
+
+				if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
+									btnModeSec++;
+					}
+					else{
+						btnModeSec=0;
+					}
+
+					if(btnModeSec>12){
+						timeSettingMode=1;
+						btnModeSec=0;
+						timeSettingModeHour=sTime.Hours;
+						timeSettingModeMinute=sTime.Minutes;
+						char TimeStringEdit[6];
+						if(timeSettingModeMinute<10){
+							sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+						}
+						else{
+							sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+						}
+						char* pTimeEdit=TimeStringEdit;
+						ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
+						osDelay(1000);
+
+					}
 
 			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
 	  	  	osDelay(250);                             //main screen refresh delay in ms

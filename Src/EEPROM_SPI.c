@@ -222,8 +222,11 @@ EepromOperations EEPROM_SPI_WriteBuffer(uint8_t* pBuffer, uint16_t WriteAddr, ui
   * @retval None
   */
 EepromOperations EEPROM_SPI_ReadBuffer(uint8_t* pBuffer, uint16_t ReadAddr, uint16_t NumByteToRead) {
-    while (EEPROM_SPI->State != HAL_SPI_STATE_READY) {
+    if(EEPROM_SPI->State == HAL_SPI_STATE_ERROR)return EEPROM_STATUS_ERROR;
+    else{
+	while (EEPROM_SPI->State != HAL_SPI_STATE_READY) {
         osDelay(1);
+    }
     }
 
     /*

@@ -25,7 +25,7 @@ extern "C" {
 #define EEPROM_WIP_FLAG        0x01  /*!< Write In Progress (WIP) flag */
 
 #define EEPROM_PAGESIZE        32    /*!< Pagesize according to documentation */
-#define EEPROM_BUFFER_SIZE     32    /*!< EEPROM Buffer size. Setup to your needs */
+#define EEPROM_BUFFER_SIZE     8    /*!< EEPROM Buffer size. Setup to your needs */
 
 #define EEPROM_CS_HIGH()    HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET)
 #define EEPROM_CS_LOW()     HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_RESET)
