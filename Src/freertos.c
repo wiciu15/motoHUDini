@@ -245,13 +245,13 @@ void vLCDMain(void const * argument)
 	ILI9341_Init();
 	ILI9341_Fill_Screen(BLACK);  //LCD init and graphics memory cleanup
 
-	/////BACKLIGHT
+///////////BACKLIGHT ON////////////
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight is delayed-switching on now
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
 
 
 
-	/////DRAWING SPLASH SCREEN WITH LOGO/////
+//////////DRAWING SPLASH SCREEN WITH LOGO/////
 	ILI9341_Draw_Rectangle(56, 50, 40, 120, LIGHTGREY);
 	ILI9341_Draw_Rectangle(96, 50, 155, 120, RED);
 	ILI9341_DrawBitmap((const char*)logo, 125,70,96,78,RED);
@@ -263,7 +263,7 @@ void vLCDMain(void const * argument)
 	osDelay(2000);
 	ILI9341_Draw_Rectangle(50, 50, 205, 130, BLACK);  //wait 2s and get rid of the logo
 
-	////RTC power failure/////
+//////////////////////////RTC power failure///////////////////
 		if(HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1)!=0x32FE){
 			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
 			ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
@@ -274,17 +274,17 @@ void vLCDMain(void const * argument)
 			ILI9341_Fill_Screen(BLACK);
 		}
 
-
+//////////////ADC calibration and start/////////////////////////
 		HAL_ADC_Stop(&hadc1);
 		HAL_ADCEx_Calibration_Start(&hadc1);
 		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
 
-		/////////EEPROM CFG////////
+//////////////////////////////EEPROM CFG/////////////////////
 			EEPROM_SPI_INIT(&hspi2);
 
 
-			//double m=606.66;    //write initial values to blank EEPROM
-			//double t=123.33;
+			//double m=21606.70;    //write initial values to blank EEPROM
+			//double t=999.71;
 			//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)16, (uint16_t)8);
 			//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)24, (uint16_t)8);
 
@@ -350,8 +350,8 @@ void vLCDMain(void const * argument)
 	///////DRAWING STATIC GRAPHICS AND TEXT///////
 	ILI9341_Draw_Horizontal_Line(1, 49, 319, WHITE);     //horizontal lines
 	ILI9341_Draw_Horizontal_Line(1, 74, 319, WHITE);
-	ILI9341_Draw_Horizontal_Line(1, 175, 319, WHITE);
-	ILI9341_Draw_Horizontal_Line(1, 210, 319, WHITE);
+	ILI9341_Draw_Horizontal_Line(1, 170, 319, WHITE);
+	ILI9341_Draw_Horizontal_Line(1, 205, 319, WHITE);
 	ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
 	ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
 
@@ -397,17 +397,17 @@ void vLCDMain(void const * argument)
 				itoa(tempCelsiusOil,pTempOil,10);     //int to string
 				itoa(tempCelsiusAir,pTempAir,10);
 				//drawing Oil temp
-				ILI9341_Draw_Rectangle( 205, 213, 80, 60, BLACK);
-				ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 225, WHITE, 1, BLACK);
-				ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 213, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 320-28, 213, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 320-19, 213, WHITE, 3, BLACK);
+				ILI9341_Draw_Rectangle( 205, 208, 80, 60, BLACK);
+				ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 215, WHITE, 1, BLACK);
+				ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 207, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 320-28, 207, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 320-19, 207, WHITE, 3, BLACK);
 				//drawing Air temp
-				ILI9341_Draw_Rectangle( 35, 213, 80, 60, BLACK);
-				ILI9341_Draw_Text(pTempAir, 10, 213, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 10+strlen(pTempAir)*19, 213, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 18+strlen(pTempAir)*19, 213, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("air", 45+strlen(pTempAir)*19, 225, WHITE, 1, BLACK);
+				ILI9341_Draw_Rectangle( 35, 207, 100, 60, BLACK);
+				ILI9341_Draw_Text(pTempAir, 10, 207, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 10+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 18+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("air", 45+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
 			}
 			tempAvg_i++;
 
@@ -466,27 +466,30 @@ void vLCDMain(void const * argument)
 
 			//mileage and trip drawing
 				if(trip!=lastTrip){
+
+					if(lastTrip!=0){
+							if(trip>1000){       //trip zeroes automatically every 1000km
+								trip=trip-1000;
+								}
+
+							EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);   //write mileage and trip to eeprom
+							EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);     //after 100 wheel revolutions
+					}
+
 				char* pMileage=mileageString;
 				itoa(mileage, pMileage, 10);
-				ILI9341_Draw_Text(pMileage, 10, 180, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("km", 10+(strlen(pMileage)*19), 192, WHITE, 1, BLACK);
+				ILI9341_Draw_Text(pMileage, 10, 175, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("km", 10+(strlen(pMileage)*19), 185, WHITE, 1, BLACK);
 
 
 				char* pTrip=tripString;
 				itoa(trip, pTrip, 10);
-				ILI9341_Draw_Text("trip", (320-(strlen(pTrip)*19)-30-35), 184, WHITE, 1, BLACK);   //trip is right aligned so lenght of the string must be subtracted in X dir
-				ILI9341_Draw_Text(pTrip, (320-(strlen(pTrip)*19)-30), 180, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("km",(320-30) , 192, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("trip", (320-(strlen(pTrip)*19)-30-35), 180, WHITE, 1, BLACK);   //trip is right aligned so lenght of the string must be subtracted in X dir
+				ILI9341_Draw_Text(pTrip, (320-(strlen(pTrip)*19)-30), 175, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("km",(320-30) , 190, WHITE, 1, BLACK);
 
-				if(lastTrip!=0){
-					if(trip>1000){       //trip zeroes automatically every 1000km
-						trip=trip-1000;
-						}
 
-					EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);   //write mileage and trip to eeprom
-					EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);     //after 100 wheel revolutions
 
-				}
 
 				lastTrip=trip;
 				}
@@ -590,7 +593,7 @@ void vStepp(void const * argument)
 {
   /* USER CODE BEGIN vStepp */
   /* Infinite loop */
-	osDelay(4000);  //startup delay for dial calibration in vStartup task
+	osDelay(3000);  //startup delay for dial calibration in vStartup task
   for(;;)
   {
 	  float RPMfreq=100000/(Get_IC_Value());
@@ -647,11 +650,11 @@ void vStartup(void const * argument)
 
 //////Dial calibration during startup////////
 
-	for(int i=0;i<800;i++){
+	for(int i=0;i<580;i++){
 		StepperGoOneStep(1,2);
 		lastPosition++;
 	}
-	for(int i=0;i<800;i++){
+	for(int i=0;i<580;i++){
 			StepperGoOneStep(0,2);
 			lastPosition--;
 		}
