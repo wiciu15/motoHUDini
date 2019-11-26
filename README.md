@@ -3,9 +3,12 @@ Firmware for motoHUD digital speedometer and instrument cluster for motorcycle. 
 
 Written with CubeIDE using HAL and CubeMX
 
-- Electric schematic (https://github.com/wiciu15/motoHUDsch/)
 
-- 3D printed enclosure ( <b>no link for now :(</b> )
+- PCB & schematic (https://github.com/wiciu15/motoHUDsch/)
+
+- 3D printed enclosure ( https://github.com/wiciu15/motoHUDencl/ )
+
+- Demo video: https://youtu.be/awKXkiaZZUE
 
 ![alt text](https://i.imgur.com/zx7ixDC.png)
 
