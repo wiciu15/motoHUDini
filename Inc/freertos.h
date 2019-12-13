@@ -9,6 +9,10 @@
 
 extern double mileage;
 extern double trip;
+extern uint32_t RPM;
+extern int32_t lastPosition;
+extern int32_t stepsToGo;
+extern uint32_t lastStep;
 
 
 extern int EncNumberOfPulses;   //liczba pulsow enkodera na obrot kola

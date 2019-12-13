@@ -28,7 +28,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "freertos.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -61,11 +61,13 @@ void USB_LP_CAN1_RX0_IRQHandler(void);
 void EXTI9_5_IRQHandler(void);
 void TIM1_CC_IRQHandler(void);
 void TIM2_IRQHandler(void);
+void TIM3_IRQHandler(void);
 void TIM4_IRQHandler(void);
 void SPI1_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 uint32_t Get_IC_Value();
 uint32_t Get_VelocityTime_Value();
+void StepperGoOneStep(uint32_t dir);
 /* USER CODE END EFP */
 
 #ifdef __cplusplus

@@ -60,7 +60,7 @@
 /* USER CODE BEGIN Variables */
 uint32_t RPM=0;
 uint32_t RPMAvgSum=0;
-int32_t lastPosition=0;
+float RPMfreq=0;
 int RPMNow=0;
 uint32_t RPMAvg_i=0;
 uint32_t lastRPM=1;
@@ -88,8 +88,7 @@ float WheelCircumference=1.4356;  //obwod kola w m
 
 uint32_t ADCBUF[3];
 
-int32_t stepsToGo=0;
-uint32_t lastStep=1;
+
 
 uint8_t UsbReceivedData[40];
 uint8_t UsbReceivedDataFlag;
@@ -119,7 +118,7 @@ osThreadId startupHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-void StepperGoOneStep(uint32_t dir,uint32_t step);
+
 void SendUsbMessage(uint8_t message[]);
 /* USER CODE END FunctionPrototypes */
 
@@ -593,46 +592,31 @@ void vStepp(void const * argument)
 {
   /* USER CODE BEGIN vStepp */
   /* Infinite loop */
-	osDelay(3000);  //startup delay for dial calibration in vStartup task
+	osDelay(4000);  //startup delay for dial calibration in vStartup task
   for(;;)
   {
-	  float RPMfreq=100000/(Get_IC_Value());
-	  RPMNow=(RPMfreq*10.27)-255;
-	  if(RPMNow>260)RPMAvgSum+=RPMNow;
+
+	  if(Get_IC_Value()!=0){
+		  RPMfreq=1000000/(Get_IC_Value());  //get RPM signal frequency
+	  }
+	  else{
+		  RPMfreq=0;
+	  }
+
+	  RPMNow=(RPMfreq*10.27)-255;				//calculate RPM value
+	  if(RPMNow>260)RPMAvgSum+=RPMNow;          //if RPM value is positive add it to average
 
 	  RPMAvg_i++;
-	  if(RPMAvg_i==20){
+	  if(RPMAvg_i==20){					//after 20 measurements calculate average
 	  	RPM=RPMAvgSum/20;
-	  	RPM=RPM/25;
+	  	RPM=RPM/25;                    //resolution of measurement is 25 RPM
 	  	RPM=RPM*25;
 	  	RPMAvgSum=0;
 	  	RPMAvg_i=0;
+
 	  	}
+	  osDelay(3); //averaged RPM value every 60ms (20*3)
 
-
-
-	  uint32_t StepperPosition=RPM/25;
-
-
-
-	  	if(stepsToGo!=0){
-	  		stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
-	  	}
-	  	else{stepsToGo=(StepperPosition-lastPosition);}
-
-	  	lastPosition=StepperPosition;
-
-	  if(stepsToGo>0){
-	  			StepperGoOneStep(1,2);
-	  			stepsToGo-=1;
-	  	}
-	  if(stepsToGo<0){
-	  			StepperGoOneStep(0,2);
-	  			stepsToGo+=1;
-	  	}
-	  if(stepsToGo==0){
-	  			osDelay(2);
-		}
   }
   /* USER CODE END vStepp */
 }
@@ -650,14 +634,35 @@ void vStartup(void const * argument)
 
 //////Dial calibration during startup////////
 
-	for(int i=0;i<580;i++){
-		StepperGoOneStep(1,2);
-		lastPosition++;
-	}
-	for(int i=0;i<580;i++){
-			StepperGoOneStep(0,2);
-			lastPosition--;
+	RPM=4000;
+	osDelay(300);
+		while(stepsToGo>0){
+			osDelay(10);
 		}
+		osDelay(300);
+
+	RPM=8000;
+	osDelay(300);
+		while(stepsToGo>0){
+			osDelay(10);
+		}
+		osDelay(300);
+
+	RPM=12000;
+	osDelay(300);
+		while(stepsToGo>0){
+			osDelay(10);
+		}
+		osDelay(300);
+
+	RPM=15400;
+	osDelay(300);
+		while(stepsToGo>0){
+			osDelay(10);
+		}
+		osDelay(300);
+
+	RPM=0;
 	vTaskDelete(startupHandle);
   /* USER CODE END vStartup */
 }
@@ -671,7 +676,7 @@ void SendUsbMessage(uint8_t message[]){
 		mesLenght=sprintf(mesData, "%s\n\r",message);
 		CDC_Transmit_FS(mesData, mesLenght);
 }
-void StepperGoOneStep(uint32_t dir, uint32_t speed){
+/*void StepperGoOneStep(uint32_t dir, uint32_t speed){
 	if(dir!=0){  //przeciwnie do wskazowek zegara
 
 		if(lastStep==2){
@@ -779,7 +784,8 @@ void StepperGoOneStep(uint32_t dir, uint32_t speed){
 		osDelay(speed);
 		}
 	}
-}
+}*/
+
 /* USER CODE END Application */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
