@@ -3,7 +3,7 @@ Firmware for motoHUD digital speedometer and instrument cluster for motorcycle. 
 
 Written with CubeIDE using HAL and CubeMX
 
-90% of code is in Src/freertos.c
+90% of code is in Src/freertos.c and stm32f103_it.c
 
 
 - PCB & schematic (https://github.com/wiciu15/motoHUDsch/)
