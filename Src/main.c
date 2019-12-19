@@ -92,6 +92,11 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
+  //////////////////////////////////////////////////////////////////////////////////
+  //AFTER CODE GENERATION IN CUBE CHANGE BAUDRATE_PRESLALER FOR SPI1 to 2 in spi.c//
+  // AND REMOVE TIME SETTING IN rtc.c
+  //////////////////////////////////////////////////////////////////////////////////
+
   /* USER CODE END Init */
 
   /* Configure the system clock */

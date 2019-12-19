@@ -242,6 +242,16 @@ void vLCDMain(void const * argument)
 
 
 	ILI9341_Init();
+
+
+
+
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
+
+
+
+
+
 	ILI9341_Fill_Screen(BLACK);  //LCD init and graphics memory cleanup
 
 ///////////BACKLIGHT ON////////////
@@ -259,7 +269,7 @@ void vLCDMain(void const * argument)
 	//ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
 
 
-	osDelay(2000);
+	osDelay(3000);
 	ILI9341_Draw_Rectangle(50, 50, 205, 130, BLACK);  //wait 2s and get rid of the logo
 
 //////////////////////////RTC power failure///////////////////
@@ -571,7 +581,7 @@ void vLCDMain(void const * argument)
 
 					}
 
-			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
+			//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
 	  	  	osDelay(250);                             //main screen refresh delay in ms
 
 
@@ -635,32 +645,17 @@ void vStartup(void const * argument)
 //////Dial calibration during startup////////
 
 	RPM=4000;
-	osDelay(300);
-		while(stepsToGo>0){
-			osDelay(10);
-		}
-		osDelay(300);
+	osDelay(700);
 
 	RPM=8000;
-	osDelay(300);
-		while(stepsToGo>0){
-			osDelay(10);
-		}
-		osDelay(300);
+	osDelay(700);
 
 	RPM=12000;
-	osDelay(300);
-		while(stepsToGo>0){
-			osDelay(10);
-		}
-		osDelay(300);
+	osDelay(700);
 
 	RPM=15400;
-	osDelay(300);
-		while(stepsToGo>0){
-			osDelay(10);
-		}
-		osDelay(300);
+	osDelay(700);
+
 
 	RPM=0;
 	vTaskDelete(startupHandle);

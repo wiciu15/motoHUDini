@@ -84,6 +84,7 @@
 #include "ILI9341_STM32_Driver.h"
 #include "spi.h"
 #include "gpio.h"
+#include "cmsis_os.h"
 
 /* Global Variables ------------------------------------------------------------------*/
 volatile uint16_t LCD_HEIGHT = ILI9341_SCREEN_HEIGHT;
@@ -341,7 +342,8 @@ void ILI9341_Draw_Colour(uint16_t Colour)
 unsigned char TempBuffer[2] = {Colour>>8, Colour};	
 HAL_GPIO_WritePin(LCD_DC_PORT, LCD_DC_PIN, GPIO_PIN_SET);	
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET);
-HAL_SPI_Transmit(HSPI_INSTANCE, TempBuffer, 2, 1);
+//HAL_SPI_Transmit(HSPI_INSTANCE, TempBuffer, 2, 1);
+HAL_SPI_Transmit_DMA(HSPI_INSTANCE, TempBuffer, 2);
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 }
 
@@ -379,17 +381,30 @@ if(Sending_in_Block != 0)
 {
 	for(uint32_t j = 0; j < (Sending_in_Block); j++)
 		{
-		HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size,1);
 
-
+			//HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size,1);
+		    HAL_SPI_StateTypeDef spi_state = HAL_SPI_GetState(HSPI_INSTANCE);
+			while(spi_state!=HAL_SPI_STATE_READY){
+				spi_state = HAL_SPI_GetState(HSPI_INSTANCE);
+			}
+			HAL_SPI_Transmit_DMA(HSPI_INSTANCE, (unsigned char *)burst_buffer, Buffer_Size);
 		}
 }
 
 //REMAINDER!
-HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Remainder_from_block,1);
-	
+
+//HAL_SPI_Transmit(HSPI_INSTANCE, (unsigned char *)burst_buffer, Remainder_from_block,1);
+HAL_SPI_StateTypeDef spi_state = HAL_SPI_GetState(HSPI_INSTANCE);
+while(spi_state!=HAL_SPI_STATE_READY){
+	spi_state = HAL_SPI_GetState(HSPI_INSTANCE);
+	}
+HAL_SPI_Transmit_DMA(HSPI_INSTANCE, (unsigned char *)burst_buffer, Remainder_from_block);
+
+osDelay(1);  //wait for transmission to complete before setting Chip select pin
 HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 }
+
+
 
 //FILL THE ENTIRE SCREEN WITH SELECTED COLOUR (either #define-d ones or custom 16bit)
 /*Sets address (entire screen) and Sends Height*Width ammount of colour information to LCD*/
@@ -456,7 +471,7 @@ HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET);
 //DRAW RECTANGLE OF SET SIZE AND HEIGTH AT X and Y POSITION WITH CUSTOM COLOUR
 //
 //Rectangle is hollow. X and Y positions mark the upper left corner of rectangle
-//As with all other draw calls x0 and y0 locations dependant on screen orientation
+//As with all other draw calls x0 and y0 locations dependent on screen orientation
 //
 
 void ILI9341_Draw_Rectangle(uint16_t X, uint16_t Y, uint16_t Width, uint16_t Height, uint16_t Colour)

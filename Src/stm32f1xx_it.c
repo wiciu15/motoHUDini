@@ -353,8 +353,10 @@ void TIM3_IRQHandler(void)
 			  	else{stepsToGo=(StepperPosition-lastPosition);}
 
 			  	lastPosition=StepperPosition;
-			  	stepper_delay=(300/abs(stepsToGo))+15;  //1,5ms is minimal delay possible,timer counts in 0,1ms
-			  	if(stepper_delay>70){stepper_delay=70;}
+
+			  	stepper_delay=(300/abs(stepsToGo))+19;  //1,9ms is minimal delay possible,timer counts in 0,1ms
+			  	if(stepper_delay>70){stepper_delay=70;} //7ms is a maximum delay between steps
+
 
 			  if(stepsToGo>0){
 			  			StepperGoOneStep(1);
