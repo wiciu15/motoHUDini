@@ -37,6 +37,8 @@
 #include "usbd_cdc_if.h"
 #include "rtc.h"
 #include "ILI9341/derbilogo.h"
+#include "ILI9341/blinkerIcon.h"
+#include "ILI9341/highBeamIcon.h"
 #include "EEPROM_SPI.h"
 #include "spi.h"
 /* USER CODE END Includes */
@@ -58,14 +60,21 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+
+/////////////////////////////
+//////GLOBAL  VARIABLES//////
+/////////////////////////////
+
+//RPM CALCULATION AND AVERAGING
 uint32_t RPM=0;
 uint32_t RPMAvgSum=0;
 float RPMfreq=0;
 int RPMNow=0;
 uint32_t RPMAvg_i=0;
 uint32_t lastRPM=1;
-uint8_t lastVelocity=1;
 
+
+//TEMPERATURE
 uint32_t tempNowOil=0;
 uint32_t tempNowAir=0;
 double voltOil=0;
@@ -76,6 +85,7 @@ uint32_t tempAirADC=0;
 uint32_t tempAvgAir=0;
 uint32_t tempAvg_i=0;
 
+//STRINGS FOR VALUES
 char RPMString[4];
 char VelocityString[3];
 char tempOilString[4];
@@ -83,26 +93,40 @@ char tempAirString[4];
 char mileageString[10];
 char tripString[10];
 
-int EncNumberOfPulses=4;   //liczba pulsow enkodera na obrot kola
-float WheelCircumference=1.4356;  //obwod kola w m
+//VELOCITY RELATED
+int EncNumberOfPulses=4;   //number of pulses from hall sensor per 1 wheel rev
+float WheelCircumference=1.4356;
+uint8_t lastVelocity=1;
 
+//BUFFER FOR DATA FROM ADC
 uint32_t ADCBUF[3];
 
-
-
+//USB BUFFERS
 uint8_t UsbReceivedData[40];
 uint8_t UsbReceivedDataFlag;
 
+//CLOCK REFRESH WHEN MINUTES CHANGE
 uint8_t lastMinute=0;
 
+//ODOMETER
 double mileage=0;
 double trip=0;
 double lastTrip=0;
 
+//EEPROM
 	extern uint8_t RxBuffer[8];       //eeprom receive data buffer
 	extern uint8_t EEPROM_StatusByte;
 
 
+	//INDICATORS
+uint8_t neutralState=0;
+uint8_t lastNeutralState=1;
+uint8_t highBeamState=1;
+uint8_t lastHighBeamState=0;
+uint8_t blinkerState=1;
+uint8_t lastBlinkerState=0;
+
+	//MENU
 uint8_t btnModeSec=0;
 uint8_t btnSetSec=0;
 uint8_t timeSettingMode=0;
@@ -263,7 +287,8 @@ void vLCDMain(void const * argument)
 //////////DRAWING SPLASH SCREEN WITH LOGO/////
 	ILI9341_Draw_Rectangle(56, 50, 40, 120, LIGHTGREY);
 	ILI9341_Draw_Rectangle(96, 50, 155, 120, RED);
-	ILI9341_DrawBitmap((const char*)logo, 125,70,96,78,RED);
+	ILI9341_DrawBitmap((const char*)logo, 125,70,96,78,RED,WHITE);
+
 
 	//ILI9341_Draw_Text("Welcome", ILI9341_SCREEN_WIDTH/2-70, ILI9341_SCREEN_HEIGHT/2+20, WHITE, 3, BLACK);
 	//ILI9341_Draw_Text("on board", ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2+45, WHITE, 3, BLACK);
@@ -356,13 +381,15 @@ void vLCDMain(void const * argument)
 
 
 
-	///////DRAWING STATIC GRAPHICS AND TEXT///////
+	///////DRAWING STATIC GRAPHICS///////
 	ILI9341_Draw_Horizontal_Line(1, 49, 319, WHITE);     //horizontal lines
 	ILI9341_Draw_Horizontal_Line(1, 74, 319, WHITE);
 	ILI9341_Draw_Horizontal_Line(1, 170, 319, WHITE);
 	ILI9341_Draw_Horizontal_Line(1, 205, 319, WHITE);
 	ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
 	ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
+
+
 
 	////////FORCE TIME DRAWING AFTER STARTUP WHEN MINUTE IN RTC = 0/////////
 	RTC_TimeTypeDef sTime;
@@ -378,16 +405,15 @@ void vLCDMain(void const * argument)
 	while(1){
 
 
-
 		//calculation and drawing of temperature
 			tempNowOil=ADCBUF[0];    //number of ADC samples
 			tempAvgOil+=tempNowOil;
 			tempNowAir=ADCBUF[1];
 			tempAvgAir+=tempNowAir;
-			if(tempAvg_i==19){
-				tempOilADC=tempAvgOil/20;     //averaging samples from ADC
+			if(tempAvg_i==49){
+				tempOilADC=tempAvgOil/50;     //averaging samples from ADC
 				tempAvgOil=0;
-				tempAirADC=tempAvgAir/20;
+				tempAirADC=tempAvgAir/50;
 				tempAvgAir=0;
 				tempAvg_i=0;
 
@@ -437,18 +463,51 @@ void vLCDMain(void const * argument)
 			}
 
 			//Velocity drawing
-			uint8_t Velocity;
-			char* pVelocity=VelocityString;
-			if(Get_VelocityTime_Value()==0){Velocity=0;}else{
-			Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;}
-			if(Velocity<150 && Velocity!=lastVelocity){
-			itoa(Velocity, pVelocity, 10);
-			if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
-			if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
-			ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
-			lastVelocity=Velocity;
+
+			//if in neutral gear draw N in GREEN
+			if(neutralState==1 && lastNeutralState==0){
+				ILI9341_Draw_Text("N", ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, GREEN, 10, BLACK);
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2, 45, 16, BLACK); //hide kmh text white background
+				lastVelocity=255;
+			}
+			if(neutralState==0 && lastNeutralState==1){ //force kmh value drawing when changing from neutral to gear
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
+				ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
+				lastVelocity=255;
+			}
+			lastNeutralState=neutralState;
+			// if in gear calculate and draw velocity value
+			if(neutralState==0){
+				uint8_t Velocity;
+				char* pVelocity=VelocityString;
+				if(Get_VelocityTime_Value()==0){Velocity=0;}else{
+					Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;} //calculate velocity
+				if(Velocity<150 && Velocity!=lastVelocity){  //if number is valid and different from last calculation convert it to string
+					itoa(Velocity, pVelocity, 10);
+					//clear last value on screen
+					if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+					if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+
+					ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
+					lastVelocity=Velocity;
+				}
 			}
 
+
+			//Indicators drawing
+			if(blinkerState==1 && lastBlinkerState==0){ILI9341_DrawBitmap((const char*)blinkerIcon, 10, ILI9341_SCREEN_HEIGHT/2-30,64,48,BLACK,GREEN);}
+			if(blinkerState==0 && lastBlinkerState==1){ILI9341_Draw_Rectangle(10, ILI9341_SCREEN_HEIGHT/2-30, 64, 48, BLACK);}
+
+			if(highBeamState==1 && lastHighBeamState==0){ILI9341_DrawBitmap((const char*)highBeamIcon, ILI9341_SCREEN_WIDTH-48-5,5,48,34,BLACK,BLUE);}
+			if(highBeamState==0 && lastHighBeamState==1){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH-48-5,5,48,34, BLACK);}
+
+			lastBlinkerState=blinkerState;
+			lastHighBeamState=highBeamState;
+
+			//read indicators state after drawing to show predefined state right after startup
+			if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_SET){blinkerState=1;}else{blinkerState=0;}
+			if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_SET){neutralState=1;}else{neutralState=0;}
+			if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_SET){highBeamState=1;}else{highBeamState=0;}
 
 			//time drawing
 			if(timeSettingMode==0){
@@ -582,7 +641,7 @@ void vLCDMain(void const * argument)
 					}
 
 			//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
-	  	  	osDelay(250);                             //main screen refresh delay in ms
+	  	  	osDelay(100);                             //main screen refresh delay in ms
 
 
 

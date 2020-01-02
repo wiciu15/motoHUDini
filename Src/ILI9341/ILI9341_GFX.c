@@ -366,7 +366,7 @@ void ILI9341_Draw_Image(const char* Image_Array, uint8_t Orientation,uint16_t X1
 	}
 }
 
-void ILI9341_DrawBitmap(const char* Image_Array,uint16_t X1, uint16_t Y1, uint16_t Width, uint16_t Height,uint16_t Background_Color){
+void ILI9341_DrawBitmap(const char* Image_Array,uint16_t X1, uint16_t Y1, uint16_t Width, uint16_t Height,uint16_t Background_Color, uint16_t Foreground_Color){
 
 	ILI9341_Set_Address(X1,Y1,X1+Width-1,Y1+Height);
 
@@ -384,8 +384,8 @@ void ILI9341_DrawBitmap(const char* Image_Array,uint16_t X1, uint16_t Y1, uint16
 								Temp_small_buffer[k+1]=Background_Color;
 							}
 							else{
-								Temp_small_buffer[k]=0xFF;
-								Temp_small_buffer[k+1]=0xFF;
+								Temp_small_buffer[k]=Foreground_Color>>8;
+								Temp_small_buffer[k+1]=Foreground_Color;
 							}
 					}
 					HAL_SPI_Transmit_DMA(&hspi1, (unsigned char*)Temp_small_buffer, BURST_MAX_SIZE);
@@ -402,8 +402,8 @@ void ILI9341_DrawBitmap(const char* Image_Array,uint16_t X1, uint16_t Y1, uint16
 												temp_remainder[k+1]=Background_Color;
 											}
 											else{
-												temp_remainder[k]=0xFF;
-												temp_remainder[k+1]=0xFF;
+												temp_remainder[k]=Foreground_Color>>8;
+												temp_remainder[k+1]=Foreground_Color;
 											}
 									}
 			}
