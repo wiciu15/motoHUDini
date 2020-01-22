@@ -417,20 +417,23 @@ void vLCDMain(void const * argument)
 				tempAvgAir=0;
 				tempAvg_i=0;
 
-				voltOil=tempOilADC*(3.29/4096);    //calculate voltage value
-				voltAir=tempAirADC*(3.29/4096);
+				voltOil=((tempOilADC*3.29)/4095);    //calculate voltage value
+				voltAir=((tempAirADC*3.29)/4095);
 
 				double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
 				double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
 
-				int tempCelsiusOil=(1/((log(resistanceOil/100000)/(3950))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
-				int tempCelsiusAir=(1/((log(resistanceAir/100000)/(3950))+(1/298.15)))-273.15;
+				int tempCelsiusOil=(1/((log(resistanceOil/98710)/(3900))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
+				int tempCelsiusAir=(1/((log(resistanceAir/98710)/(3900))+(1/298.15)))-273.15;
 
 				char* pTempOil=tempOilString;
 				char* pTempAir=tempAirString;
 
-				itoa(tempCelsiusOil,pTempOil,10);     //int to string
-				itoa(tempCelsiusAir,pTempAir,10);
+				if(tempCelsiusOil<10){pTempOil="--";} //blank if thermistor unplugged
+				else{itoa(tempCelsiusOil,pTempOil,10);}
+				if(tempCelsiusAir<-10){pTempAir="--";}
+				else{itoa(tempCelsiusAir,pTempAir,10);}
+
 				//drawing Oil temp
 				ILI9341_Draw_Rectangle( 205, 208, 80, 60, BLACK);
 				ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 215, WHITE, 1, BLACK);
