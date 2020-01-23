@@ -664,7 +664,7 @@ void vStepp(void const * argument)
 {
   /* USER CODE BEGIN vStepp */
   /* Infinite loop */
-	osDelay(4000);  //startup delay for dial calibration in vStartup task
+	osDelay(4500);  //startup delay for dial calibration in vStartup task
   for(;;)
   {
 
@@ -679,7 +679,7 @@ void vStepp(void const * argument)
 	  if(RPMNow>260)RPMAvgSum+=RPMNow;          //if RPM value is positive add it to average
 
 	  RPMAvg_i++;
-	  if(RPMAvg_i==20){					//after 20 measurements calculate average
+	  if(RPMAvg_i==19){					//after 20 measurements calculate average
 	  	RPM=RPMAvgSum/20;
 	  	RPM=RPM/25;                    //resolution of measurement is 25 RPM
 	  	RPM=RPM*25;
@@ -687,7 +687,7 @@ void vStepp(void const * argument)
 	  	RPMAvg_i=0;
 
 	  	}
-	  osDelay(3); //averaged RPM value every 60ms (20*3)
+	  osDelay(2); //averaged RPM value every 40ms (20*2)
 
   }
   /* USER CODE END vStepp */

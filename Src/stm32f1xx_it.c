@@ -35,7 +35,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
- 
+
+////////STEPPER PARAMETERS///////////
+//use power-on calibration of dial to tweak these values//
+#define STEPPER_MAX_DELAY   		70		//lower value speeds up  the motor (50-100)
+#define STEPPER_MIN_DELAY   		16		//bigger value slows down the motor (16-30), too low can make it lose steps
+#define STEPPER_ACCELERATION		2		//lower value makes motor accelerate slower (1-3)
+#define STEPPER_DECCELERATION		300		//lower value makes motor stop faster (100-500)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,7 +62,10 @@ int32_t stepsToGo=0;
 int32_t lastStepsToGo=0;
 uint32_t lastStep=1;
 
-uint16_t stepper_delay=100;
+uint16_t stepper_delay=70;
+uint16_t lastStepperDelay=70;
+int16_t stepperAccelDelay=0;
+
 
 
 
@@ -345,33 +354,40 @@ void TIM2_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	uint32_t StepperPosition=RPM/26;
 
-			  	if(stepsToGo!=0){
-			  		stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
-			  	}
-			  	else{stepsToGo=(StepperPosition-lastPosition);}
+//calculate dial position
+		uint32_t StepperPosition=RPM/26;
 
-			  	lastPosition=StepperPosition;
+		if(stepsToGo!=0){
+			stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
+		}
+		else{stepsToGo=(StepperPosition-lastPosition);}
+		lastPosition=StepperPosition;
 
-			  	stepper_delay=(300/abs(stepsToGo))+19;  //1,9ms is minimal delay possible,timer counts in 0,1ms
-			  	if(stepper_delay>70){stepper_delay=70;} //7ms is a maximum delay between steps
+		if(stepsToGo==0){stepper_delay=STEPPER_MAX_DELAY;}  //if dial on position just wait
+//DIAL DECCELARATION
+		else{
+			 stepper_delay=(STEPPER_DECCELERATION/abs(stepsToGo))+STEPPER_MIN_DELAY;  //lower position error-lower the motor speed
+			 if(stepper_delay>STEPPER_MAX_DELAY){stepper_delay=STEPPER_MAX_DELAY;} //prevent delay from being too big
+		}
+//DIAL ACCELERATION
+		stepperAccelDelay=lastStepperDelay-stepper_delay; //calculate chage in motor spped
+		//if motor is accelerating add some delay between steps to slow it down
+		if(stepperAccelDelay>10){stepper_delay+=stepperAccelDelay;lastStepperDelay-=STEPPER_ACCELERATION;}
+		else{lastStepperDelay=stepper_delay;}
+//Make 1 step of the motor
+		if(stepsToGo>0){
+			StepperGoOneStep(1);
+			stepsToGo-=1;
+		}
+		if(stepsToGo<0){
+			StepperGoOneStep(0);
+			stepsToGo+=1;
+		}
+//wait for a calculated delay before making next step
+		__HAL_TIM_SET_AUTORELOAD(&htim3,stepper_delay);
+	    lastStepsToGo=stepsToGo;
 
-
-			  if(stepsToGo>0){
-			  			StepperGoOneStep(1);
-			  			stepsToGo-=1;
-			  			__HAL_TIM_SET_AUTORELOAD(&htim3,stepper_delay);
-			  	}
-			  if(stepsToGo<0){
-			  			StepperGoOneStep(0);
-			  			stepsToGo+=1;
-			  			__HAL_TIM_SET_AUTORELOAD(&htim3,stepper_delay);
-			  	}
-			  if(stepsToGo==0){
-				  __HAL_TIM_SET_AUTORELOAD(&htim3,70); //if gauge on position wait 10ms
-				}
-			  lastStepsToGo=stepsToGo;
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
