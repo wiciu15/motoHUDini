@@ -36,12 +36,10 @@ Written with CubeIDE using HAL and CubeMX
 
 +EEPROM for storing data after powering off (mileage and trip) (https://github.com/firebull/STM32-EEPROM-SPI library)
 
++indicators (blinker, headlights, neutral gear)
+
++indicator bitmaps for UI
 
 <b>Work still in progress:</b>
-
-
-- indicators (blinker, headlights, neutral gear)
-
-- indicator icons/bitmaps for UI
 
 - configuration of device parameters via computer to STM32's USB CDC peripheral (Virtual COM Port)
