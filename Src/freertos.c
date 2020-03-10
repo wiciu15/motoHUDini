@@ -266,17 +266,8 @@ void vLCDMain(void const * argument)
 
 
 	ILI9341_Init();
-
-
-
-
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
-
-
-
-
-
 	ILI9341_Fill_Screen(BLACK);  //LCD init and graphics memory cleanup
+	osDelay(30);
 
 ///////////BACKLIGHT ON////////////
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight is delayed-switching on now
@@ -317,8 +308,8 @@ void vLCDMain(void const * argument)
 			EEPROM_SPI_INIT(&hspi2);
 
 
-			//double m=21606.70;    //write initial values to blank EEPROM
-			//double t=999.71;
+			//double m=28622.70;    //write initial values to blank EEPROM
+			//double t=1.61;
 			//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)16, (uint16_t)8);
 			//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)24, (uint16_t)8);
 
@@ -410,10 +401,10 @@ void vLCDMain(void const * argument)
 			tempAvgOil+=tempNowOil;
 			tempNowAir=ADCBUF[1];
 			tempAvgAir+=tempNowAir;
-			if(tempAvg_i==49){
-				tempOilADC=tempAvgOil/50;     //averaging samples from ADC
+			if(tempAvg_i==19){
+				tempOilADC=tempAvgOil/20;     //averaging samples from ADC
 				tempAvgOil=0;
-				tempAirADC=tempAvgAir/50;
+				tempAirADC=tempAvgAir/20;
 				tempAvgAir=0;
 				tempAvg_i=0;
 
@@ -441,11 +432,11 @@ void vLCDMain(void const * argument)
 				ILI9341_Draw_Text("0", 320-28, 207, WHITE, 1, BLACK);
 				ILI9341_Draw_Text("C", 320-19, 207, WHITE, 3, BLACK);
 				//drawing Air temp
-				ILI9341_Draw_Rectangle( 35, 207, 100, 60, BLACK);
-				ILI9341_Draw_Text(pTempAir, 10, 207, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 10+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 18+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("air", 45+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
+				ILI9341_Draw_Rectangle( 40, 207, 100, 60, BLACK);
+				ILI9341_Draw_Text(pTempAir, 15, 207, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("0", 15+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
+				ILI9341_Draw_Text("C", 23+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("air", 50+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
 			}
 			tempAvg_i++;
 
@@ -465,7 +456,7 @@ void vLCDMain(void const * argument)
 
 			}
 
-			//Velocity drawing
+	/////////////Velocity drawing//////////////////////
 
 			//if in neutral gear draw N in GREEN
 			if(neutralState==1 && lastNeutralState==0){
@@ -483,8 +474,8 @@ void vLCDMain(void const * argument)
 			if(neutralState==0){
 				uint8_t Velocity;
 				char* pVelocity=VelocityString;
-				if(Get_VelocityTime_Value()==0){Velocity=0;}else{
-					Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTime_Value()*0.0001))*3.6;} //calculate velocity
+				if(Get_VelocityTimeAvg()==0){Velocity=0;}else{
+					Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTimeAvg()*0.0001))*3.6;} //calculate velocity
 				if(Velocity<150 && Velocity!=lastVelocity){  //if number is valid and different from last calculation convert it to string
 					itoa(Velocity, pVelocity, 10);
 					//clear last value on screen
@@ -528,7 +519,7 @@ void vLCDMain(void const * argument)
 				char* pTime=TimeString;
 
 
-					ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, 50, 100,24, BLACK);
+					ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, 50, 130,24, BLACK);
 					ILI9341_Draw_Text(pTime, ILI9341_SCREEN_WIDTH/2-40, 50, WHITE, 3, BLACK);
 					lastMinute=sTime.Minutes;
 				}
@@ -549,8 +540,8 @@ void vLCDMain(void const * argument)
 
 				char* pMileage=mileageString;
 				itoa(mileage, pMileage, 10);
-				ILI9341_Draw_Text(pMileage, 10, 175, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("km", 10+(strlen(pMileage)*19), 185, WHITE, 1, BLACK);
+				ILI9341_Draw_Text(pMileage, 15, 175, WHITE, 3, BLACK);
+				ILI9341_Draw_Text("km", 15+(strlen(pMileage)*19), 185, WHITE, 1, BLACK);
 
 
 				char* pTrip=tripString;
@@ -571,10 +562,10 @@ void vLCDMain(void const * argument)
 				if(timeSettingMode==1){   //minute setting
 					char TimeStringEdit[6];
 					if(timeSettingModeMinute<10){
-						sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+						sprintf(TimeStringEdit,"%d:0%d<",timeSettingModeHour,timeSettingModeMinute);
 					}
 					else{
-						sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+						sprintf(TimeStringEdit,"%d:%d<",timeSettingModeHour,timeSettingModeMinute);
 					}
 					char* pTimeEdit=TimeStringEdit;
 					ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
@@ -584,17 +575,17 @@ void vLCDMain(void const * argument)
 						timeSettingModeMinute++;
 						if(timeSettingModeMinute==60)timeSettingModeMinute=0;
 						}
-					if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET)timeSettingMode=2;
+					if(btnModeSec>4){timeSettingMode=2;btnModeSec=0;}
 
 				}
 
 				if(timeSettingMode==2){   //hour setting
 									char TimeStringEdit[6];
 									if(timeSettingModeMinute<10){
-										sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+										sprintf(TimeStringEdit,">%d:0%d",timeSettingModeHour,timeSettingModeMinute);
 									}
 									else{
-										sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+										sprintf(TimeStringEdit,">%d:%d",timeSettingModeHour,timeSettingModeMinute);
 									}
 
 									char* pTimeEdit=TimeStringEdit;
@@ -606,7 +597,7 @@ void vLCDMain(void const * argument)
 									}
 
 
-									if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
+									if(btnModeSec>4){
 										timeSettingMode=0;
 										RTC_TimeTypeDef sTimeEdited;
 										sTimeEdited.Hours=timeSettingModeHour;
@@ -614,18 +605,19 @@ void vLCDMain(void const * argument)
 										sTimeEdited.Seconds=0;
 										HAL_RTC_SetTime(&hrtc, &sTimeEdited, RTC_FORMAT_BIN);
 										lastMinute=timeSettingModeMinute+1;
+										btnModeSec=0;
 									}
 
 								}
 
 				if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
-									btnModeSec++;
+					btnModeSec++;
 					}
 					else{
 						btnModeSec=0;
 					}
 
-					if(btnModeSec>12){
+				if(btnModeSec>10){
 						timeSettingMode=1;
 						btnModeSec=0;
 						timeSettingModeHour=sTime.Hours;
@@ -644,7 +636,7 @@ void vLCDMain(void const * argument)
 					}
 
 			//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
-	  	  	osDelay(100);                             //main screen refresh delay in ms
+	  	  	osDelay(250);                             //main screen refresh delay in ms
 
 
 
