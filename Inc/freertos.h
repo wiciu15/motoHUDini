@@ -15,7 +15,7 @@ extern int32_t stepsToGo;
 extern uint32_t lastStep;
 
 
-extern int EncNumberOfPulses;   //liczba pulsow enkodera na obrot kola
+extern uint8_t EncNumberOfPulses;   //liczba pulsow enkodera na obrot kola
 extern float WheelCircumference;  //obwod kola w m
 
 

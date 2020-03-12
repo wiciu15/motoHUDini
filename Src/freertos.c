@@ -31,8 +31,8 @@
 #include "ILI9341/ILI9341_GFX.h"
 #include "stm32f1xx_it.h"
 #include <math.h>
-//#include "itoa.h"
 #include <stdlib.h>
+#include "MOTOHUD_CONFIG.h"
 #include "adc.h"
 #include "usbd_cdc_if.h"
 #include "rtc.h"
@@ -94,8 +94,8 @@ char mileageString[10];
 char tripString[10];
 
 //VELOCITY RELATED
-int EncNumberOfPulses=4;   //number of pulses from hall sensor per 1 wheel rev
-float WheelCircumference=1.4356;
+uint8_t EncNumberOfPulses=NUM_OF_PULSES_PER_REV;   //number of pulses from hall sensor per 1 wheel rev
+float WheelCircumference=WHEEL_CIRCUMFERENCE;
 uint8_t lastVelocity=1;
 
 //BUFFER FOR DATA FROM ADC
@@ -262,20 +262,20 @@ osDelay(1000);
 /* USER CODE END Header_vLCDMain */
 void vLCDMain(void const * argument)
 {
-  /* USER CODE BEGIN vLCDMain */
+	/* USER CODE BEGIN vLCDMain */
 
 
 	ILI9341_Init();
 	ILI9341_Fill_Screen(BLACK);  //LCD init and graphics memory cleanup
 	osDelay(30);
 
-///////////BACKLIGHT ON////////////
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight is delayed-switching on now
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
+	///////////BACKLIGHT ON////////////
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);  //dial gauge backlight is delayed-switching on now
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);  //tft backlight is delayed-switching on now
 
 
 
-//////////DRAWING SPLASH SCREEN WITH LOGO/////
+	//////////DRAWING SPLASH SCREEN WITH LOGO/////
 	ILI9341_Draw_Rectangle(56, 50, 40, 120, LIGHTGREY);
 	ILI9341_Draw_Rectangle(96, 50, 155, 120, RED);
 	ILI9341_DrawBitmap((const char*)logo, 125,70,96,78,RED,WHITE);
@@ -288,87 +288,87 @@ void vLCDMain(void const * argument)
 	osDelay(3000);
 	ILI9341_Draw_Rectangle(50, 50, 205, 130, BLACK);  //wait 2s and get rid of the logo
 
-//////////////////////////RTC power failure///////////////////
-		if(HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1)!=0x32FE){
-			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
-			ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
-			ILI9341_Draw_Text("Constant power lost", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
-			ILI9341_Draw_Text("Set new time", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
-			HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x32FE);
-			osDelay(3000);
-			ILI9341_Fill_Screen(BLACK);
-		}
+	//////////////////////////RTC power failure///////////////////
+	if(HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1)!=0x32FE){
+		ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+		ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+		ILI9341_Draw_Text("Constant power lost", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+		ILI9341_Draw_Text("Set new time", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
+		HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x32FE);
+		osDelay(3000);
+		ILI9341_Fill_Screen(BLACK);
+	}
 
-//////////////ADC calibration and start/////////////////////////
-		HAL_ADC_Stop(&hadc1);
-		HAL_ADCEx_Calibration_Start(&hadc1);
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
+	//////////////ADC calibration and start/////////////////////////
+	HAL_ADC_Stop(&hadc1);
+	HAL_ADCEx_Calibration_Start(&hadc1);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
 
-//////////////////////////////EEPROM CFG/////////////////////
-			EEPROM_SPI_INIT(&hspi2);
-
-
-			//double m=28622.70;    //write initial values to blank EEPROM
-			//double t=1.61;
-			//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)16, (uint16_t)8);
-			//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)24, (uint16_t)8);
-
-			//read saved mileage and trip from eeprom
-
-			if(EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)16, (uint16_t)8)==EEPROM_STATUS_COMPLETE){ //read mileage as uint8_t array from address 16
-			memcpy(&mileage, RxBuffer, sizeof(double));	  //cast uint8_t array to double
-			}
-			else{                                                                                            //communication error
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
-				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
-				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
-				ILI9341_Draw_Text("Configure again", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
-				mileage=0;
-				osDelay(3000);
-				ILI9341_Fill_Screen(BLACK);
-			}
-			if(mileage<0 || mileage >1000000){                                                                //mileage value incorrect
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
-				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
-				ILI9341_Draw_Text("Mileage value incorrect", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
-				mileage=0;
-				osDelay(3000);
-				ILI9341_Fill_Screen(BLACK);
-			}
-			if(mileage!=mileage){                                                                               //EEPROM value not a number(NaN)
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
-				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
-				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
-				ILI9341_Draw_Text("Configure again", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
-				mileage=0;
-				//EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);
-				osDelay(3000);
-				ILI9341_Fill_Screen(BLACK);
-			}
+	//////////////////////////////EEPROM CFG/////////////////////
+	EEPROM_SPI_INIT(&hspi2);
 
 
-			EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)24, (uint16_t)8);   //read trip from eeprom
-			memcpy(&trip, RxBuffer, sizeof(double));
+	//double m=28622.70;    //write initial values to blank EEPROM
+	//double t=1.61;
+	//EEPROM_SPI_WriteBuffer((uint8_t*) &m, (uint16_t)16, (uint16_t)8);
+	//EEPROM_SPI_WriteBuffer((uint8_t*) &t, (uint16_t)24, (uint16_t)8);
+
+	//read saved mileage and trip from eeprom
+
+	if(EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)16, (uint16_t)8)==EEPROM_STATUS_COMPLETE){ //read mileage as uint8_t array from address 16
+		memcpy(&mileage, RxBuffer, sizeof(double));	  //cast uint8_t array to double
+	}
+	else{                                                                                            //communication error
+		ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+		ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+		ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+		ILI9341_Draw_Text("Configure again", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
+		mileage=0;
+		osDelay(3000);
+		ILI9341_Fill_Screen(BLACK);
+	}
+	if(mileage<0 || mileage >1000000){                                                                //mileage value incorrect
+		ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+		ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+		ILI9341_Draw_Text("Mileage value incorrect", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+		mileage=0;
+		osDelay(3000);
+		ILI9341_Fill_Screen(BLACK);
+	}
+	if(mileage!=mileage){                                                                               //EEPROM value not a number(NaN)
+		ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+		ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+		ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+		ILI9341_Draw_Text("Configure again", ILI9341_SCREEN_WIDTH/2-60, ILI9341_SCREEN_HEIGHT/2+50, RED, 2, BLACK);
+		mileage=0;
+		//EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);
+		osDelay(3000);
+		ILI9341_Fill_Screen(BLACK);
+	}
 
 
-			if(trip<0 || trip >10000){       //EEPROM value invalid
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
-				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
-				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
-				trip=0;
-				EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);
-				osDelay(3000);
-				ILI9341_Fill_Screen(BLACK);
-			}
-			if(trip!=trip){                                                                               //EEPROM value not a number(NaN)
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
-				ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
-				ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
-				trip=0;
-				EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);
-				osDelay(3000);
-				ILI9341_Fill_Screen(BLACK);
-			}
+	EEPROM_SPI_ReadBuffer(RxBuffer, (uint16_t)24, (uint16_t)8);   //read trip from eeprom
+	memcpy(&trip, RxBuffer, sizeof(double));
+
+
+	if(trip<0 || trip >10000){       //EEPROM value invalid
+		ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+		ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+		ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+		trip=0;
+		EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);
+		osDelay(3000);
+		ILI9341_Fill_Screen(BLACK);
+	}
+	if(trip!=trip){                                                                               //EEPROM value not a number(NaN)
+		ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, ILI9341_SCREEN_HEIGHT/2-80, 60, 72,RED);
+		ILI9341_Draw_Text("!", ILI9341_SCREEN_WIDTH/2, ILI9341_SCREEN_HEIGHT/2-80, WHITE, 9, RED);
+		ILI9341_Draw_Text("Internal storage error", 40, ILI9341_SCREEN_HEIGHT/2+30, RED, 2, BLACK);
+		trip=0;
+		EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);
+		osDelay(3000);
+		ILI9341_Fill_Screen(BLACK);
+	}
 
 
 
@@ -397,118 +397,118 @@ void vLCDMain(void const * argument)
 
 
 		//calculation and drawing of temperature
-			tempNowOil=ADCBUF[0];    //number of ADC samples
-			tempAvgOil+=tempNowOil;
-			tempNowAir=ADCBUF[1];
-			tempAvgAir+=tempNowAir;
-			if(tempAvg_i==19){
-				tempOilADC=tempAvgOil/20;     //averaging samples from ADC
-				tempAvgOil=0;
-				tempAirADC=tempAvgAir/20;
-				tempAvgAir=0;
-				tempAvg_i=0;
+		tempNowOil=ADCBUF[0];    //number of ADC samples
+		tempAvgOil+=tempNowOil;
+		tempNowAir=ADCBUF[1];
+		tempAvgAir+=tempNowAir;
+		if(tempAvg_i==19){
+			tempOilADC=tempAvgOil/20;     //averaging samples from ADC
+			tempAvgOil=0;
+			tempAirADC=tempAvgAir/20;
+			tempAvgAir=0;
+			tempAvg_i=0;
 
-				voltOil=((tempOilADC*3.29)/4095);    //calculate voltage value
-				voltAir=((tempAirADC*3.29)/4095);
+			voltOil=((tempOilADC*3.29)/4095);    //calculate voltage value
+			voltAir=((tempAirADC*3.29)/4095);
 
-				double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
-				double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
+			double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
+			double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
 
-				int tempCelsiusOil=(1/((log(resistanceOil/98710)/(3900))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
-				int tempCelsiusAir=(1/((log(resistanceAir/98710)/(3900))+(1/298.15)))-273.15;
+			int tempCelsiusOil=(1/((log(resistanceOil/98710)/(3900))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
+			int tempCelsiusAir=(1/((log(resistanceAir/98710)/(3900))+(1/298.15)))-273.15;
 
-				char* pTempOil=tempOilString;
-				char* pTempAir=tempAirString;
+			char* pTempOil=tempOilString;
+			char* pTempAir=tempAirString;
 
-				if(tempCelsiusOil<10){pTempOil="--";} //blank if thermistor unplugged
-				else{itoa(tempCelsiusOil,pTempOil,10);}
-				if(tempCelsiusAir<-10){pTempAir="--";}
-				else{itoa(tempCelsiusAir,pTempAir,10);}
+			if(tempCelsiusOil<10){pTempOil="--";} //blank if thermistor unplugged
+			else{itoa(tempCelsiusOil,pTempOil,10);}
+			if(tempCelsiusAir<-10){pTempAir="--";}
+			else{itoa(tempCelsiusAir,pTempAir,10);}
 
-				//drawing Oil temp
-				ILI9341_Draw_Rectangle( 205, 208, 80, 60, BLACK);
-				ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 215, WHITE, 1, BLACK);
-				ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 207, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 320-28, 207, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 320-19, 207, WHITE, 3, BLACK);
-				//drawing Air temp
-				ILI9341_Draw_Rectangle( 40, 207, 100, 60, BLACK);
-				ILI9341_Draw_Text(pTempAir, 15, 207, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("0", 15+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
-				ILI9341_Draw_Text("C", 23+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("air", 50+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
-			}
-			tempAvg_i++;
+			//drawing Oil temp
+			ILI9341_Draw_Rectangle( 205, 208, 80, 60, BLACK);
+			ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 215, WHITE, 1, BLACK);
+			ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 207, WHITE, 3, BLACK);
+			ILI9341_Draw_Text("0", 320-28, 207, WHITE, 1, BLACK);
+			ILI9341_Draw_Text("C", 320-19, 207, WHITE, 3, BLACK);
+			//drawing Air temp
+			ILI9341_Draw_Rectangle( 40, 207, 100, 60, BLACK);
+			ILI9341_Draw_Text(pTempAir, 15, 207, WHITE, 3, BLACK);
+			ILI9341_Draw_Text("0", 15+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
+			ILI9341_Draw_Text("C", 23+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
+			ILI9341_Draw_Text("air", 50+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
+		}
+		tempAvg_i++;
 
 
-			//RPM value drawing
-			if(RPM<20000 && RPM!=lastRPM){   //RPM is calculated in vStepp task
+		//RPM value drawing
+		if(RPM<20000 && RPM!=lastRPM){   //RPM is calculated in vStepp task
 			lastRPM=RPM;
 			char* pRPM=RPMString;
 			itoa(RPM, pRPM, 10);
 			if(RPM<100)ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-80, 5, 60, 40, BLACK);
 			if(RPM<1000){ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-25, 5, 60, 40, BLACK);}
 			else{
-			ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2+8, 5, 60, 40, BLACK);
+				ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2+8, 5, 60, 40, BLACK);
 			}
 			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
 			ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
 
+		}
+
+		/////////////Velocity drawing//////////////////////
+
+		//if in neutral gear draw N in GREEN
+		if(neutralState==1 && lastNeutralState==0){
+			ILI9341_Draw_Text("N", ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, GREEN, 10, BLACK);
+			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2, 45, 16, BLACK); //hide kmh text white background
+			lastVelocity=255;
+		}
+		if(neutralState==0 && lastNeutralState==1){ //force kmh value drawing when changing from neutral to gear
+			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
+			ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
+			lastVelocity=255;
+		}
+		lastNeutralState=neutralState;
+		// if in gear calculate and draw velocity value
+		if(neutralState==0){
+			uint8_t Velocity;
+			char* pVelocity=VelocityString;
+			if(Get_VelocityTimeAvg()==0){Velocity=0;}else{
+				Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTimeAvg()*0.0001))*3.6;} //calculate velocity
+			if(Velocity!=lastVelocity){  //if number is valid and different from last calculation convert it to string
+				itoa(Velocity, pVelocity, 10);
+				//clear last value on screen
+				if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+				if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+
+				ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
+				lastVelocity=Velocity;
 			}
-
-	/////////////Velocity drawing//////////////////////
-
-			//if in neutral gear draw N in GREEN
-			if(neutralState==1 && lastNeutralState==0){
-				ILI9341_Draw_Text("N", ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, GREEN, 10, BLACK);
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2, 45, 16, BLACK); //hide kmh text white background
-				lastVelocity=255;
-			}
-			if(neutralState==0 && lastNeutralState==1){ //force kmh value drawing when changing from neutral to gear
-				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
-				ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
-				lastVelocity=255;
-			}
-			lastNeutralState=neutralState;
-			// if in gear calculate and draw velocity value
-			if(neutralState==0){
-				uint8_t Velocity;
-				char* pVelocity=VelocityString;
-				if(Get_VelocityTimeAvg()==0){Velocity=0;}else{
-					Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTimeAvg()*0.0001))*3.6;} //calculate velocity
-				if(Velocity<150 && Velocity!=lastVelocity){  //if number is valid and different from last calculation convert it to string
-					itoa(Velocity, pVelocity, 10);
-					//clear last value on screen
-					if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
-					if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
-
-					ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
-					lastVelocity=Velocity;
-				}
-			}
+		}
 
 
-			//Indicators drawing
-			if(blinkerState==1 && lastBlinkerState==0){ILI9341_DrawBitmap((const char*)blinkerIcon, 10, ILI9341_SCREEN_HEIGHT/2-30,64,48,BLACK,GREEN);}
-			if(blinkerState==0 && lastBlinkerState==1){ILI9341_Draw_Rectangle(10, ILI9341_SCREEN_HEIGHT/2-30, 64, 48, BLACK);}
+		//Indicators drawing
+		if(blinkerState==1 && lastBlinkerState==0){ILI9341_DrawBitmap((const char*)blinkerIcon, 10, ILI9341_SCREEN_HEIGHT/2-30,64,48,BLACK,GREEN);}
+		if(blinkerState==0 && lastBlinkerState==1){ILI9341_Draw_Rectangle(10, ILI9341_SCREEN_HEIGHT/2-30, 64, 48, BLACK);}
 
-			if(highBeamState==1 && lastHighBeamState==0){ILI9341_DrawBitmap((const char*)highBeamIcon, ILI9341_SCREEN_WIDTH-48-5,5,48,34,BLACK,BLUE);}
-			if(highBeamState==0 && lastHighBeamState==1){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH-48-5,5,48,34, BLACK);}
+		if(highBeamState==1 && lastHighBeamState==0){ILI9341_DrawBitmap((const char*)highBeamIcon, ILI9341_SCREEN_WIDTH-48-5,5,48,34,BLACK,BLUE);}
+		if(highBeamState==0 && lastHighBeamState==1){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH-48-5,5,48,34, BLACK);}
 
-			lastBlinkerState=blinkerState;
-			lastHighBeamState=highBeamState;
+		lastBlinkerState=blinkerState;
+		lastHighBeamState=highBeamState;
 
-			//read indicators state after drawing to show predefined state right after startup
-			if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_SET){blinkerState=1;}else{blinkerState=0;}
-			if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_SET){neutralState=1;}else{neutralState=0;}
-			if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_SET){highBeamState=1;}else{highBeamState=0;}
+		//read indicators state after drawing to show predefined state right after startup
+		if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_SET){blinkerState=1;}else{blinkerState=0;}
+		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_SET){neutralState=1;}else{neutralState=0;}
+		if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_SET){highBeamState=1;}else{highBeamState=0;}
 
-			//time drawing
-			if(timeSettingMode==0){
+		//time drawing
+		if(timeSettingMode==0){
 			RTC_TimeTypeDef sTime;
-				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+			HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 
-				if(lastMinute!=sTime.Minutes){
+			if(lastMinute!=sTime.Minutes){
 				char TimeString[6];
 				if(sTime.Minutes<10){
 					sprintf(TimeString,"%d:0%d",sTime.Hours,sTime.Minutes);
@@ -519,124 +519,124 @@ void vLCDMain(void const * argument)
 				char* pTime=TimeString;
 
 
-					ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, 50, 130,24, BLACK);
-					ILI9341_Draw_Text(pTime, ILI9341_SCREEN_WIDTH/2-40, 50, WHITE, 3, BLACK);
-					lastMinute=sTime.Minutes;
+				ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-40, 50, 130,24, BLACK);
+				ILI9341_Draw_Text(pTime, ILI9341_SCREEN_WIDTH/2-40, 50, WHITE, 3, BLACK);
+				lastMinute=sTime.Minutes;
+			}
+		}
+
+
+		//mileage and trip drawing
+		if(trip!=lastTrip){
+
+			if(lastTrip!=0){
+				if(trip>1000){       //trip zeroes automatically every 1000km
+					trip=trip-1000;
 				}
+
+				EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);   //write mileage and trip to eeprom
+				EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);     //after 100 wheel revolutions
+			}
+
+			char* pMileage=mileageString;
+			itoa(mileage, pMileage, 10);
+			ILI9341_Draw_Text(pMileage, 15, 175, WHITE, 3, BLACK);
+			ILI9341_Draw_Text("km", 15+(strlen(pMileage)*19), 185, WHITE, 1, BLACK);
+
+
+			char* pTrip=tripString;
+			itoa(trip, pTrip, 10);
+			ILI9341_Draw_Text("trip", (320-(strlen(pTrip)*19)-30-35), 180, WHITE, 1, BLACK);   //trip is right aligned so lenght of the string must be subtracted in X dir
+			ILI9341_Draw_Text(pTrip, (320-(strlen(pTrip)*19)-30), 175, WHITE, 3, BLACK);
+			ILI9341_Draw_Text("km",(320-30) , 190, WHITE, 1, BLACK);
+
+
+
+
+			lastTrip=trip;
+		}
+
+		////TIME SETTING
+
+
+		if(timeSettingMode==1){   //minute setting
+			char TimeStringEdit[6];
+			if(timeSettingModeMinute<10){
+				sprintf(TimeStringEdit,"%d:0%d<",timeSettingModeHour,timeSettingModeMinute);
+			}
+			else{
+				sprintf(TimeStringEdit,"%d:%d<",timeSettingModeHour,timeSettingModeMinute);
+			}
+			char* pTimeEdit=TimeStringEdit;
+			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
+
+
+			if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
+				timeSettingModeMinute++;
+				if(timeSettingModeMinute==60)timeSettingModeMinute=0;
+			}
+			if(btnModeSec>4){timeSettingMode=2;btnModeSec=0;}
+
+		}
+
+		if(timeSettingMode==2){   //hour setting
+			char TimeStringEdit[6];
+			if(timeSettingModeMinute<10){
+				sprintf(TimeStringEdit,">%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+			}
+			else{
+				sprintf(TimeStringEdit,">%d:%d",timeSettingModeHour,timeSettingModeMinute);
+			}
+
+			char* pTimeEdit=TimeStringEdit;
+			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
+
+			if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
+				timeSettingModeHour++;
+				if(timeSettingModeHour==24)timeSettingModeHour=0;
 			}
 
 
-			//mileage and trip drawing
-				if(trip!=lastTrip){
+			if(btnModeSec>4){
+				timeSettingMode=0;
+				RTC_TimeTypeDef sTimeEdited;
+				sTimeEdited.Hours=timeSettingModeHour;
+				sTimeEdited.Minutes=timeSettingModeMinute;
+				sTimeEdited.Seconds=0;
+				HAL_RTC_SetTime(&hrtc, &sTimeEdited, RTC_FORMAT_BIN);
+				lastMinute=timeSettingModeMinute+1;
+				btnModeSec=0;
+			}
 
-					if(lastTrip!=0){
-							if(trip>1000){       //trip zeroes automatically every 1000km
-								trip=trip-1000;
-								}
+		}
 
-							EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)16, (uint16_t)8);   //write mileage and trip to eeprom
-							EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)24, (uint16_t)8);     //after 100 wheel revolutions
-					}
+		if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
+			btnModeSec++;
+		}
+		else{
+			btnModeSec=0;
+		}
 
-				char* pMileage=mileageString;
-				itoa(mileage, pMileage, 10);
-				ILI9341_Draw_Text(pMileage, 15, 175, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("km", 15+(strlen(pMileage)*19), 185, WHITE, 1, BLACK);
+		if(btnModeSec>10){
+			timeSettingMode=1;
+			btnModeSec=0;
+			timeSettingModeHour=sTime.Hours;
+			timeSettingModeMinute=sTime.Minutes;
+			char TimeStringEdit[6];
+			if(timeSettingModeMinute<10){
+				sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+			}
+			else{
+				sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+			}
+			char* pTimeEdit=TimeStringEdit;
+			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
+			osDelay(1000);
 
+		}
 
-				char* pTrip=tripString;
-				itoa(trip, pTrip, 10);
-				ILI9341_Draw_Text("trip", (320-(strlen(pTrip)*19)-30-35), 180, WHITE, 1, BLACK);   //trip is right aligned so lenght of the string must be subtracted in X dir
-				ILI9341_Draw_Text(pTrip, (320-(strlen(pTrip)*19)-30), 175, WHITE, 3, BLACK);
-				ILI9341_Draw_Text("km",(320-30) , 190, WHITE, 1, BLACK);
-
-
-
-
-				lastTrip=trip;
-				}
-
-			////TIME SETTING
-
-
-				if(timeSettingMode==1){   //minute setting
-					char TimeStringEdit[6];
-					if(timeSettingModeMinute<10){
-						sprintf(TimeStringEdit,"%d:0%d<",timeSettingModeHour,timeSettingModeMinute);
-					}
-					else{
-						sprintf(TimeStringEdit,"%d:%d<",timeSettingModeHour,timeSettingModeMinute);
-					}
-					char* pTimeEdit=TimeStringEdit;
-					ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
-
-
-					if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
-						timeSettingModeMinute++;
-						if(timeSettingModeMinute==60)timeSettingModeMinute=0;
-						}
-					if(btnModeSec>4){timeSettingMode=2;btnModeSec=0;}
-
-				}
-
-				if(timeSettingMode==2){   //hour setting
-									char TimeStringEdit[6];
-									if(timeSettingModeMinute<10){
-										sprintf(TimeStringEdit,">%d:0%d",timeSettingModeHour,timeSettingModeMinute);
-									}
-									else{
-										sprintf(TimeStringEdit,">%d:%d",timeSettingModeHour,timeSettingModeMinute);
-									}
-
-									char* pTimeEdit=TimeStringEdit;
-									ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
-
-									if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
-										timeSettingModeHour++;
-										if(timeSettingModeHour==24)timeSettingModeHour=0;
-									}
-
-
-									if(btnModeSec>4){
-										timeSettingMode=0;
-										RTC_TimeTypeDef sTimeEdited;
-										sTimeEdited.Hours=timeSettingModeHour;
-										sTimeEdited.Minutes=timeSettingModeMinute;
-										sTimeEdited.Seconds=0;
-										HAL_RTC_SetTime(&hrtc, &sTimeEdited, RTC_FORMAT_BIN);
-										lastMinute=timeSettingModeMinute+1;
-										btnModeSec=0;
-									}
-
-								}
-
-				if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
-					btnModeSec++;
-					}
-					else{
-						btnModeSec=0;
-					}
-
-				if(btnModeSec>10){
-						timeSettingMode=1;
-						btnModeSec=0;
-						timeSettingModeHour=sTime.Hours;
-						timeSettingModeMinute=sTime.Minutes;
-						char TimeStringEdit[6];
-						if(timeSettingModeMinute<10){
-							sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
-						}
-						else{
-							sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
-						}
-						char* pTimeEdit=TimeStringEdit;
-						ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
-						osDelay(1000);
-
-					}
-
-			//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
-	  	  	osDelay(250);                             //main screen refresh delay in ms
+		//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
+		osDelay(250);                             //main screen refresh delay in ms
 
 
 

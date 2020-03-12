@@ -25,7 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "EEPROM_SPI.h"
+#include "MOTOHUD_CONFIG.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,12 +36,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-////////STEPPER PARAMETERS///////////
-//use power-on calibration of dial to tweak these values//
-#define STEPPER_MAX_DELAY   		70		//lower value speeds up  the motor (50-100)
-#define STEPPER_MIN_DELAY   		16		//bigger value slows down the motor (16-30), too low can make it lose steps
-#define STEPPER_ACCELERATION		2		//lower value makes motor accelerate slower (1-3)
-#define STEPPER_DECCELERATION		300		//lower value makes motor stop faster (100-500)
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -100,8 +95,8 @@ extern double mileage;
 extern double trip;
 
 
-extern int EncNumberOfPulses;   //liczba pulsow enkodera na obrot kola
-extern float WheelCircumference;  //obwod kola w m
+extern uint8_t EncNumberOfPulses;
+extern float WheelCircumference;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -281,33 +276,34 @@ void EXTI9_5_IRQHandler(void)
 
 //	        EXTI->PR1 = 1 << 9;
 
-	        if(__HAL_TIM_GET_COUNTER(&htim2)==0){
-	        	__HAL_TIM_ENABLE(&htim2);
-	        	VelocityTimeAvg=1; //set non-zero value to allow for Get_velocityTimeAvg to return valid time.
-	        }
-	        else{
-	        	if(__HAL_TIM_GET_COUNTER(&htim2)>60){       //noise filter-24ms for a wheel revolution is just not possible
-	        VelocityTimeSum+=__HAL_TIM_GET_COUNTER(&htim2);
-	        VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
-	        VelocityAvgI++;
-	        	/*if(VelocityAvgI==4){
+///////////////////////////////////VELOCITY TIME MEASUREMENT//////////////////////////
+	if(__HAL_TIM_GET_COUNTER(&htim2)==0){//if timer was disabled enable it
+		__HAL_TIM_ENABLE(&htim2);
+		VelocityTimeAvg=1; //set non-zero value to allow for Get_VelocityTimeAvg() to return valid time.
+	}
+	else{
+		if(__HAL_TIM_GET_COUNTER(&htim2)>100){       //noise filter-100=10ms for 1/4 wheel rev. Max speed possible to measure = 129kmh
+			VelocityTimeSum+=__HAL_TIM_GET_COUNTER(&htim2);
+			VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
+			VelocityAvgI++;
+			/*if(VelocityAvgI==4){   //averaging done in Get_VelocityTimeAvg() now
 	        		VelocityTime=VelocityTimeSum/4;
 	        		VelocityTimeSum=0;
 	        		VelocityAvgI=1;
 	        	}*/
-	        __HAL_TIM_SET_COUNTER(&htim2,0);
+			__HAL_TIM_SET_COUNTER(&htim2,0);
 
-	       WheelSpinCounter++;
-	       if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
-	    	   WheelSpinCounter=0;
-	    	   mileage+=(WheelCircumference*100)/1000;
-	    	   trip+=(WheelCircumference*100)/1000;
-	    	   //EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //can't write to EEPROM in interrupt - config_assert
-	    	   //EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);
-	       	   }
-	        }
+			WheelSpinCounter++;
+			if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
+				WheelSpinCounter=0;
+				mileage+=(WheelCircumference*100)/1000;
+				trip+=(WheelCircumference*100)/1000;
+				//EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //can't write to EEPROM in interrupt - config_assert
+				//EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);
+			}
+		}
 
-	        }
+	}
 
 	   // }
   /* USER CODE END EXTI9_5_IRQn 0 */
@@ -322,17 +318,16 @@ void EXTI9_5_IRQHandler(void)
   */
 void TIM1_CC_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM1_CC_IRQn 0 */
-	input_capture= __HAL_TIM_GET_COMPARE(&htim1, TIM_CHANNEL_1);    //read TIM2 channel 1 capture value
+	/* USER CODE BEGIN TIM1_CC_IRQn 0 */
+	input_capture = __HAL_TIM_GET_COMPARE(&htim1, TIM_CHANNEL_1); //read TIM2 channel 1 capture value
 
-	  __HAL_TIM_SET_COUNTER(&htim1, 0);    //reset counter after input capture interrupt occurs
+	__HAL_TIM_SET_COUNTER(&htim1, 0); //reset counter after input capture interrupt occurs
 
+	/* USER CODE END TIM1_CC_IRQn 0 */
+	HAL_TIM_IRQHandler(&htim1);
+	/* USER CODE BEGIN TIM1_CC_IRQn 1 */
 
-  /* USER CODE END TIM1_CC_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim1);
-  /* USER CODE BEGIN TIM1_CC_IRQn 1 */
-
-  /* USER CODE END TIM1_CC_IRQn 1 */
+	/* USER CODE END TIM1_CC_IRQn 1 */
 }
 
 /**
@@ -345,7 +340,8 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
-  __HAL_TIM_DISABLE(&htim2);       //disable timer if wheel didn't spin for 2 seconds
+  //////////////////////disable timer if wheel didn't spin for 2 seconds/////////////////////////
+  __HAL_TIM_DISABLE(&htim2);
   __HAL_TIM_SET_COUNTER(&htim2,0);
   VelocityTimeAvg=0;
   /* USER CODE END TIM2_IRQn 1 */
@@ -356,46 +352,46 @@ void TIM2_IRQHandler(void)
   */
 void TIM3_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM3_IRQn 0 */
+	/* USER CODE BEGIN TIM3_IRQn 0 */
 
-//calculate dial position
-		uint32_t StepperPosition=RPM/26;
+	//calculate dial position
+	uint32_t StepperPosition=RPM/26;
 
-		if(stepsToGo!=0){
-			stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
-		}
-		else{stepsToGo=(StepperPosition-lastPosition);}
-		lastPosition=StepperPosition;
+	if(stepsToGo!=0){
+		stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
+	}
+	else{stepsToGo=(StepperPosition-lastPosition);}
+	lastPosition=StepperPosition;
 
-		if(stepsToGo==0){stepper_delay=STEPPER_MAX_DELAY;}  //if dial on position just wait
-//DIAL DECCELARATION
-		else{
-			 stepper_delay=(STEPPER_DECCELERATION/abs(stepsToGo))+STEPPER_MIN_DELAY;  //lower position error-lower the motor speed
-			 if(stepper_delay>STEPPER_MAX_DELAY){stepper_delay=STEPPER_MAX_DELAY;} //prevent delay from being too big
-		}
-//DIAL ACCELERATION
-		stepperAccelDelay=lastStepperDelay-stepper_delay; //calculate chage in motor spped
-		//if motor is accelerating add some delay between steps to slow it down
-		if(stepperAccelDelay>10){stepper_delay+=stepperAccelDelay;lastStepperDelay-=STEPPER_ACCELERATION;}
-		else{lastStepperDelay=stepper_delay;}
-//Make 1 step of the motor
-		if(stepsToGo>0){
-			StepperGoOneStep(1);
-			stepsToGo-=1;
-		}
-		if(stepsToGo<0){
-			StepperGoOneStep(0);
-			stepsToGo+=1;
-		}
-//wait for a calculated delay before making next step
-		__HAL_TIM_SET_AUTORELOAD(&htim3,stepper_delay);
-	    lastStepsToGo=stepsToGo;
+	if(stepsToGo==0){stepper_delay=STEPPER_MAX_DELAY;}  //if dial on position just wait
+	//DIAL DECCELARATION
+	else{
+		stepper_delay=(STEPPER_DECCELERATION/abs(stepsToGo))+STEPPER_MIN_DELAY;  //lower position error-lower the motor speed
+		if(stepper_delay>STEPPER_MAX_DELAY){stepper_delay=STEPPER_MAX_DELAY;} //prevent delay from being too big
+	}
+	//DIAL ACCELERATION
+	stepperAccelDelay=lastStepperDelay-stepper_delay; //calculate chage in motor spped
+	//if motor is accelerating add some delay between steps to slow it down
+	if(stepperAccelDelay>10){stepper_delay+=stepperAccelDelay;lastStepperDelay-=STEPPER_ACCELERATION;}
+	else{lastStepperDelay=stepper_delay;}
+	//Make 1 step of the motor
+	if(stepsToGo>0){
+		StepperGoOneStep(1);
+		stepsToGo-=1;
+	}
+	if(stepsToGo<0){
+		StepperGoOneStep(0);
+		stepsToGo+=1;
+	}
+	//wait for a calculated delay before making next step
+	__HAL_TIM_SET_AUTORELOAD(&htim3,stepper_delay);
+	lastStepsToGo=stepsToGo;
 
-  /* USER CODE END TIM3_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim3);
-  /* USER CODE BEGIN TIM3_IRQn 1 */
-__HAL_TIM_SET_COUNTER(&htim3,0);
-  /* USER CODE END TIM3_IRQn 1 */
+	/* USER CODE END TIM3_IRQn 0 */
+	HAL_TIM_IRQHandler(&htim3);
+	/* USER CODE BEGIN TIM3_IRQn 1 */
+	__HAL_TIM_SET_COUNTER(&htim3,0);
+	/* USER CODE END TIM3_IRQn 1 */
 }
 
 /**
