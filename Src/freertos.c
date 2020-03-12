@@ -654,35 +654,35 @@ void vLCDMain(void const * argument)
 /* USER CODE END Header_vStepp */
 void vStepp(void const * argument)
 {
-  /* USER CODE BEGIN vStepp */
-  /* Infinite loop */
+	/* USER CODE BEGIN vStepp */
+	/* Infinite loop */
 	osDelay(4500);  //startup delay for dial calibration in vStartup task
-  for(;;)
-  {
+	for(;;)
+	{
 
-	  if(Get_IC_Value()!=0){
-		  RPMfreq=1000000/(Get_IC_Value());  //get RPM signal frequency
-	  }
-	  else{
-		  RPMfreq=0;
-	  }
+		if(Get_IC_Value()!=0){
+			RPMfreq=1000000/(Get_IC_Value());  //get RPM signal frequency
+		}
+		else{
+			RPMfreq=0;
+		}
 
-	  RPMNow=(RPMfreq*10.27)-255;				//calculate RPM value
-	  if(RPMNow>260)RPMAvgSum+=RPMNow;          //if RPM value is positive add it to average
+		RPMNow=(RPMfreq*10.27)-255;				//calculate RPM value
+		if(RPMNow>260)RPMAvgSum+=RPMNow;          //if RPM value is positive add it to average
 
-	  RPMAvg_i++;
-	  if(RPMAvg_i==19){					//after 20 measurements calculate average
-	  	RPM=RPMAvgSum/20;
-	  	RPM=RPM/25;                    //resolution of measurement is 25 RPM
-	  	RPM=RPM*25;
-	  	RPMAvgSum=0;
-	  	RPMAvg_i=0;
+		RPMAvg_i++;
+		if(RPMAvg_i==9){					//after 10 measurements calculate average
+			RPM=RPMAvgSum/10;
+			RPM=RPM/25;                    //resolution of measurement is 25 RPM
+			RPM=RPM*25;
+			RPMAvgSum=0;
+			RPMAvg_i=0;
 
-	  	}
-	  osDelay(2); //averaged RPM value every 40ms (20*2)
+		}
+		osDelay(2); //averaged RPM value every 20ms (10*2)
 
-  }
-  /* USER CODE END vStepp */
+	}
+	/* USER CODE END vStepp */
 }
 
 /* USER CODE BEGIN Header_vStartup */
