@@ -51,6 +51,7 @@ uint32_t VelocityTime;
 uint32_t VelocityAvgI=1;
 uint32_t VelocityTimeSum=0;
 uint32_t VelocityTimeAvg=1; //non-zero value because 0 means timer disabled, vehicle is stopped
+uint8_t MotorcycleStopped=1;
 uint16_t WheelSpinCounter=0;
 
 int32_t lastPosition=0;
@@ -277,21 +278,24 @@ void EXTI9_5_IRQHandler(void)
 //	        EXTI->PR1 = 1 << 9;
 
 ///////////////////////////////////VELOCITY TIME MEASUREMENT//////////////////////////
+
 	if(__HAL_TIM_GET_COUNTER(&htim2)==0){//if timer was disabled enable it
 		__HAL_TIM_ENABLE(&htim2);
-		VelocityTimeAvg=1; //set non-zero value to allow for Get_VelocityTimeAvg() to return valid time.
+		MotorcycleStopped=0;
 	}
 	else{
 		if(__HAL_TIM_GET_COUNTER(&htim2)>100){       //noise filter-100=10ms for 1/4 wheel rev. Max speed possible to measure = 129kmh
 			VelocityTimeSum+=__HAL_TIM_GET_COUNTER(&htim2);
-			VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
 			VelocityAvgI++;
+			VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
+
 			/*if(VelocityAvgI==4){   //averaging done in Get_VelocityTimeAvg() now
 	        		VelocityTime=VelocityTimeSum/4;
 	        		VelocityTimeSum=0;
 	        		VelocityAvgI=1;
 	        	}*/
 			__HAL_TIM_SET_COUNTER(&htim2,0);
+
 
 			WheelSpinCounter++;
 			if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
@@ -344,6 +348,7 @@ void TIM2_IRQHandler(void)
   __HAL_TIM_DISABLE(&htim2);
   __HAL_TIM_SET_COUNTER(&htim2,0);
   VelocityTimeAvg=0;
+  MotorcycleStopped=1;
   /* USER CODE END TIM2_IRQn 1 */
 }
 
@@ -436,15 +441,17 @@ uint32_t Get_IC_Value(){
 
 }
 
-uint32_t Get_VelocityTimeAvg(){
-	if(VelocityTimeAvg!=0){
-		VelocityTimeAvg = VelocityTimeSum/VelocityAvgI;
-		if(VelocityAvgI>3){
-			VelocityTimeSum=VelocityTime;//add latest measurement to sum to avoid having sum value 0
-			VelocityAvgI=1;
-			}
+uint32_t Get_VelocityTimeAvg() {
+	if (MotorcycleStopped == 0) {
+		if (VelocityAvgI > 1) { //if captured at least 2 samples, recalculate average value
+			VelocityTimeAvg = VelocityTimeSum / VelocityAvgI;
+			VelocityTimeSum = VelocityTime; //add latest measurement to sum to avoid having sum value 0
+			VelocityAvgI = 1;
+		}
+		return VelocityTimeAvg;
+	} else {
+		return 0; //return 0 to indicate motorcycle is stopped, timer is disabled
 	}
-	return VelocityTimeAvg; //return sum of aquired times
 }
 
 

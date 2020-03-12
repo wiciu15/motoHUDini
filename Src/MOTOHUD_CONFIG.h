@@ -5,6 +5,9 @@ Most important values device-related are here
 #ifndef MOTOHUD_CONFIG_H_
 #define MOTOHUD_CONFIG_H_
 
+///////USER PARAMETERS////////////
+#define UPDATE_DELAY_MS			500     //screen refresh delay
+
 ///////SPEEDOMETER PARAMETERS/////////
 #define NUM_OF_PULSES_PER_REV	4        //number of pulses from hall sensor per 1 wheel revolution
 #define WHEEL_CIRCUMFERENCE     1.4356	//wheel circumference in meters

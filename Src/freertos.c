@@ -420,7 +420,7 @@ void vLCDMain(void const * argument)
 			char* pTempOil=tempOilString;
 			char* pTempAir=tempAirString;
 
-			if(tempCelsiusOil<10){pTempOil="--";} //blank if thermistor unplugged
+			if(tempCelsiusOil<35){pTempOil="--";} //blank if thermistor unplugged
 			else{itoa(tempCelsiusOil,pTempOil,10);}
 			if(tempCelsiusAir<-10){pTempAir="--";}
 			else{itoa(tempCelsiusAir,pTempAir,10);}
@@ -575,7 +575,7 @@ void vLCDMain(void const * argument)
 				timeSettingModeMinute++;
 				if(timeSettingModeMinute==60)timeSettingModeMinute=0;
 			}
-			if(btnModeSec>4){timeSettingMode=2;btnModeSec=0;}
+			if(btnModeSec>UPDATE_DELAY_MS/200){timeSettingMode=2;btnModeSec=0;}
 
 		}
 
@@ -597,7 +597,7 @@ void vLCDMain(void const * argument)
 			}
 
 
-			if(btnModeSec>4){
+			if(btnModeSec>UPDATE_DELAY_MS/200){
 				timeSettingMode=0;
 				RTC_TimeTypeDef sTimeEdited;
 				sTimeEdited.Hours=timeSettingModeHour;
@@ -617,7 +617,7 @@ void vLCDMain(void const * argument)
 			btnModeSec=0;
 		}
 
-		if(btnModeSec>10){
+		if(btnModeSec>UPDATE_DELAY_MS/200){
 			timeSettingMode=1;
 			btnModeSec=0;
 			timeSettingModeHour=sTime.Hours;
@@ -636,7 +636,7 @@ void vLCDMain(void const * argument)
 		}
 
 		//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
-		osDelay(250);                             //main screen refresh delay in ms
+		osDelay(UPDATE_DELAY_MS);                             //main screen refresh delay in ms
 
 
 
