@@ -505,7 +505,7 @@ void vLCDMain(void const * argument)
 
 		//time drawing
 		if(timeSettingMode==0){
-			RTC_TimeTypeDef sTime;
+			//RTC_TimeTypeDef sTime;
 			HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 
 			if(lastMinute!=sTime.Minutes){
@@ -560,6 +560,10 @@ void vLCDMain(void const * argument)
 
 
 		if(timeSettingMode==1){   //minute setting
+			if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
+				timeSettingModeMinute++;
+				if(timeSettingModeMinute==60)timeSettingModeMinute=0;
+			}
 			char TimeStringEdit[6];
 			if(timeSettingModeMinute<10){
 				sprintf(TimeStringEdit,"%d:0%d<",timeSettingModeHour,timeSettingModeMinute);
@@ -570,16 +574,15 @@ void vLCDMain(void const * argument)
 			char* pTimeEdit=TimeStringEdit;
 			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
 
-
-			if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
-				timeSettingModeMinute++;
-				if(timeSettingModeMinute==60)timeSettingModeMinute=0;
-			}
-			if(btnModeSec>UPDATE_DELAY_MS/200){timeSettingMode=2;btnModeSec=0;}
+			if(btnModeSec>3){timeSettingMode=2;btnModeSec=0;} //mode is being held for shorter time while changing mode
 
 		}
 
 		if(timeSettingMode==2){   //hour setting
+			if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
+				timeSettingModeHour++;
+				if(timeSettingModeHour==24)timeSettingModeHour=0;
+			}
 			char TimeStringEdit[6];
 			if(timeSettingModeMinute<10){
 				sprintf(TimeStringEdit,">%d:0%d",timeSettingModeHour,timeSettingModeMinute);
@@ -591,13 +594,8 @@ void vLCDMain(void const * argument)
 			char* pTimeEdit=TimeStringEdit;
 			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
 
-			if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET){
-				timeSettingModeHour++;
-				if(timeSettingModeHour==24)timeSettingModeHour=0;
-			}
 
-
-			if(btnModeSec>UPDATE_DELAY_MS/200){
+			if(btnModeSec>3){ //mode is being held for shorter time while exiting
 				timeSettingMode=0;
 				RTC_TimeTypeDef sTimeEdited;
 				sTimeEdited.Hours=timeSettingModeHour;
@@ -610,29 +608,30 @@ void vLCDMain(void const * argument)
 
 		}
 
-		if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){
-			btnModeSec++;
-		}
-		else{
-			btnModeSec=0;
-		}
-
-		if(btnModeSec>UPDATE_DELAY_MS/200){
+		if(btnModeSec>4){
 			timeSettingMode=1;
 			btnModeSec=0;
+			HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 			timeSettingModeHour=sTime.Hours;
 			timeSettingModeMinute=sTime.Minutes;
 			char TimeStringEdit[6];
 			if(timeSettingModeMinute<10){
-				sprintf(TimeStringEdit,"%d:0%d",timeSettingModeHour,timeSettingModeMinute);
+				sprintf(TimeStringEdit,"%d:0%d<",timeSettingModeHour,timeSettingModeMinute);
 			}
 			else{
-				sprintf(TimeStringEdit,"%d:%d",timeSettingModeHour,timeSettingModeMinute);
+				sprintf(TimeStringEdit,"%d:%d<",timeSettingModeHour,timeSettingModeMinute);
 			}
 			char* pTimeEdit=TimeStringEdit;
 			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
-			osDelay(1000);
+			osDelay(100);
 
+		}
+
+		if(HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin)==GPIO_PIN_RESET){ //if mode is pressed count how long it is pressed
+			btnModeSec++;
+		}
+		else{
+			btnModeSec=0;
 		}
 
 		//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
@@ -707,7 +706,7 @@ void vStartup(void const * argument)
 	RPM=12000;
 	osDelay(700);
 
-	RPM=15400;
+	RPM=15300;
 	osDelay(700);
 
 
