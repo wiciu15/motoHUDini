@@ -84,6 +84,11 @@ uint32_t tempAvgOil=0;
 uint32_t tempAirADC=0;
 uint32_t tempAvgAir=0;
 uint32_t tempAvg_i=0;
+int tempCelsiusOil=0;
+int tempCelsiusAir=-20;
+
+int lastTempCelsiusOil=-40;
+int lastTempCelsiusAir=-40;
 
 //STRINGS FOR VALUES
 char RPMString[4];
@@ -111,7 +116,7 @@ uint8_t lastMinute=0;
 //ODOMETER
 double mileage=0;
 double trip=0;
-double lastTrip=0;
+double lastTrip=-1;
 
 //EEPROM
 	extern uint8_t RxBuffer[8];       //eeprom receive data buffer
@@ -243,11 +248,44 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN StartDefaultTask */
+
+  //////////////ADC calibration and start/////////////////////////
+  	HAL_ADC_Stop(&hadc1);
+  	HAL_ADCEx_Calibration_Start(&hadc1);
+  	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
+
   /* Infinite loop */
 
   for(;;)
   {
-osDelay(1000);
+	  //calculation and drawing of temperature
+	  		tempNowOil=ADCBUF[0];    //number of ADC samples
+	  		tempAvgOil+=tempNowOil;
+	  		tempNowAir=ADCBUF[1];
+	  		tempAvgAir+=tempNowAir;
+	  		if(tempAvg_i==69){
+	  			tempOilADC=tempAvgOil/70;     //averaging samples from ADC
+	  			tempAvgOil=0;
+	  			tempAirADC=tempAvgAir/70;
+	  			tempAvgAir=0;
+	  			tempAvg_i=0;
+
+	  			voltOil=((tempOilADC*3.29)/4095);    //calculate voltage value
+	  			voltAir=((tempAirADC*3.29)/4095);
+//TWEAK RESISTANCE AND THERMISTOR CONSTANTS TO YOUR NEEDS
+//https://www.giangrandi.org/electronics/ntc/ntc.shtml
+	  			double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
+	  			double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
+
+	  			tempCelsiusOil=(1/((log(resistanceOil/98710)/(3900))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
+	  			tempCelsiusAir=(1/((log(resistanceAir/98710)/(3900))+(1/298.15)))-273.15;
+
+	  			if(tempCelsiusOil<30)tempCelsiusOil=0;   //if value is out of range assigns const value to prevent unnecessary screen updates
+	  			if(tempCelsiusAir<-10)tempCelsiusAir=-10;
+
+	  		}
+	  		tempAvg_i++;
+	  		osDelay(25);
 
   }
   /* USER CODE END StartDefaultTask */
@@ -298,11 +336,6 @@ void vLCDMain(void const * argument)
 		osDelay(3000);
 		ILI9341_Fill_Screen(BLACK);
 	}
-
-	//////////////ADC calibration and start/////////////////////////
-	HAL_ADC_Stop(&hadc1);
-	HAL_ADCEx_Calibration_Start(&hadc1);
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBUF, 3);
 
 	//////////////////////////////EEPROM CFG/////////////////////
 	EEPROM_SPI_INIT(&hspi2);
@@ -387,61 +420,38 @@ void vLCDMain(void const * argument)
 	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 	lastMinute=sTime.Minutes+1;
 
-
-
-
-
-
-
 	while(1){
 
+		//temperature drawing
+		if(lastTempCelsiusAir!=tempCelsiusAir || lastTempCelsiusOil!=tempCelsiusOil){
+		char* pTempOil=tempOilString;
+		char* pTempAir=tempAirString;
 
-		//calculation and drawing of temperature
-		tempNowOil=ADCBUF[0];    //number of ADC samples
-		tempAvgOil+=tempNowOil;
-		tempNowAir=ADCBUF[1];
-		tempAvgAir+=tempNowAir;
-		if(tempAvg_i==19){
-			tempOilADC=tempAvgOil/20;     //averaging samples from ADC
-			tempAvgOil=0;
-			tempAirADC=tempAvgAir/20;
-			tempAvgAir=0;
-			tempAvg_i=0;
+		if(tempCelsiusOil<35){pTempOil="--";} //blank if thermistor unplugged
+		else{itoa(tempCelsiusOil,pTempOil,10);}
+		if(tempCelsiusAir<-10){pTempAir="--";}
+		else{itoa(tempCelsiusAir,pTempAir,10);}
 
-			voltOil=((tempOilADC*3.29)/4095);    //calculate voltage value
-			voltAir=((tempAirADC*3.29)/4095);
+		//drawing Oil temp
+		ILI9341_Draw_Rectangle( 205, 208, 80, 60, BLACK);
+		ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 215, WHITE, 1, BLACK);
+		ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 207, WHITE, 3, BLACK);
+		ILI9341_Draw_Text("0", 320-28, 207, WHITE, 1, BLACK);
+		ILI9341_Draw_Text("C", 320-19, 207, WHITE, 3, BLACK);
+		//drawing Air temp
+		ILI9341_Draw_Rectangle( 40, 207, 100, 60, BLACK);
+		ILI9341_Draw_Text(pTempAir, 15, 207, WHITE, 3, BLACK);
+		ILI9341_Draw_Text("0", 15+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
+		ILI9341_Draw_Text("C", 23+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
+		ILI9341_Draw_Text("air", 50+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
 
-			double resistanceOil=6284*(1/((3.3/(voltOil))-1));    //measured resistor R22 value into formula
-			double resistanceAir=158420*(1/((3.3/(voltAir))-1));  //measured resistor R23 value into formula
-
-			int tempCelsiusOil=(1/((log(resistanceOil/98710)/(3900))+(1/298.15)))-273.15;   //calculating temperature based on thermistor T(R) characteristic
-			int tempCelsiusAir=(1/((log(resistanceAir/98710)/(3900))+(1/298.15)))-273.15;
-
-			char* pTempOil=tempOilString;
-			char* pTempAir=tempAirString;
-
-			if(tempCelsiusOil<35){pTempOil="--";} //blank if thermistor unplugged
-			else{itoa(tempCelsiusOil,pTempOil,10);}
-			if(tempCelsiusAir<-10){pTempAir="--";}
-			else{itoa(tempCelsiusAir,pTempAir,10);}
-
-			//drawing Oil temp
-			ILI9341_Draw_Rectangle( 205, 208, 80, 60, BLACK);
-			ILI9341_Draw_Text("oil", 320-(strlen(pTempOil)*19)-55, 215, WHITE, 1, BLACK);
-			ILI9341_Draw_Text(pTempOil, 320-(strlen(pTempOil)*19)-28, 207, WHITE, 3, BLACK);
-			ILI9341_Draw_Text("0", 320-28, 207, WHITE, 1, BLACK);
-			ILI9341_Draw_Text("C", 320-19, 207, WHITE, 3, BLACK);
-			//drawing Air temp
-			ILI9341_Draw_Rectangle( 40, 207, 100, 60, BLACK);
-			ILI9341_Draw_Text(pTempAir, 15, 207, WHITE, 3, BLACK);
-			ILI9341_Draw_Text("0", 15+strlen(pTempAir)*19, 207, WHITE, 1, BLACK);
-			ILI9341_Draw_Text("C", 23+strlen(pTempAir)*19, 207, WHITE, 3, BLACK);
-			ILI9341_Draw_Text("air", 50+strlen(pTempAir)*19, 215, WHITE, 1, BLACK);
+		lastTempCelsiusAir=tempCelsiusAir;
+		lastTempCelsiusOil=tempCelsiusOil;
 		}
-		tempAvg_i++;
 
 
-		//RPM value drawing
+		///////////////////////RPM value drawing//////////////////////
+
 		if(RPM<20000 && RPM!=lastRPM){   //RPM is calculated in vStepp task
 			lastRPM=RPM;
 			char* pRPM=RPMString;
@@ -634,6 +644,14 @@ void vLCDMain(void const * argument)
 			btnModeSec=0;
 		}
 
+		if(HAL_GPIO_ReadPin(BTN_SET_GPIO_Port, BTN_SET_Pin)==GPIO_PIN_RESET && timeSettingMode==0){ //if mode is set count how long it is pressed
+			btnSetSec++;
+			if(btnSetSec>5){trip=0;btnSetSec=0;}
+		}
+		else{
+			btnSetSec=0;
+		}
+
 		//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);  //status led blink
 		osDelay(UPDATE_DELAY_MS);                             //main screen refresh delay in ms
 
@@ -724,115 +742,7 @@ void SendUsbMessage(uint8_t message[]){
 		mesLenght=sprintf(mesData, "%s\n\r",message);
 		CDC_Transmit_FS(mesData, mesLenght);
 }
-/*void StepperGoOneStep(uint32_t dir, uint32_t speed){
-	if(dir!=0){  //przeciwnie do wskazowek zegara
 
-		if(lastStep==2){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=1;
-		osDelay(speed);
-		}
-		if(lastStep==3){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=2;
-		osDelay(speed);
-		}
-		if(lastStep==4){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=3;
-		osDelay(speed);
-		}
-		if(lastStep==5){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=4;
-		osDelay(speed);
-		}
-		if(lastStep==6){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=5;
-		osDelay(speed);
-		}
-		if(lastStep==1){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=6;
-		osDelay(speed);
-		}
-	}
-	else{ //zgodnie z ruchem wzkazowek zegara
-
-		if(lastStep==5){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=6;
-		osDelay(speed);
-		}
-
-		if(lastStep==4){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=5;
-		osDelay(speed);
-		}
-
-		if(lastStep==3){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=4;
-		osDelay(speed);
-		}
-
-		if(lastStep==2){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=3;
-		osDelay(speed);
-		}
-
-		if(lastStep==1){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=2;
-		osDelay(speed);
-		}
-
-		if(lastStep==6){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=1;
-		osDelay(speed);
-		}
-	}
-}*/
 
 /* USER CODE END Application */
 
