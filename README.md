@@ -26,9 +26,9 @@ Written with CubeIDE using HAL and CubeMX
 
 +viewing values on TFT screen
 
-+stepper motor (x27.168) as RPM meter
++stepper motor (x27.168) as dial gauge indicator for RPM
 
-+2 temperature sensors (NTC100k thermistor connected to ADC as resistive divider) - <b>voltage values in soft are incorrect - need fix!!</b>
++2 temperature sensors (NTC100k thermistor connected to ADC as resistive divider)
 
 +nice UI
 
