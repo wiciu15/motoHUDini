@@ -72,6 +72,7 @@ float RPMfreq=0;
 int RPMNow=0;
 uint32_t RPMAvg_i=0;
 uint32_t lastRPM=1;
+uint8_t rpmCounter=0; //value will be more readable if refreshed less often
 
 
 //TEMPERATURE
@@ -102,6 +103,7 @@ char tripString[10];
 uint8_t EncNumberOfPulses=NUM_OF_PULSES_PER_REV;   //number of pulses from hall sensor per 1 wheel rev
 float WheelCircumference=WHEEL_CIRCUMFERENCE;
 uint8_t lastVelocity=1;
+uint8_t velocityCounter=0; //value will be more readable if refreshed less often
 
 //BUFFER FOR DATA FROM ADC
 uint32_t ADCBUF[3];
@@ -285,7 +287,7 @@ void StartDefaultTask(void const * argument)
 
 	  		}
 	  		tempAvg_i++;
-	  		osDelay(25);
+	  		osDelay(50);
 
   }
   /* USER CODE END StartDefaultTask */
@@ -452,24 +454,27 @@ void vLCDMain(void const * argument)
 
 		///////////////////////RPM value drawing//////////////////////
 
-		if(RPM<20000 && RPM!=lastRPM){   //RPM is calculated in vStepp task
-			lastRPM=RPM;
-			char* pRPM=RPMString;
-			itoa(RPM, pRPM, 10);
-			if(RPM<100)ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-80, 5, 60, 40, BLACK);
-			if(RPM<1000){ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-25, 5, 60, 40, BLACK);}
-			else{
-				ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2+8, 5, 60, 40, BLACK);
+		if(rpmCounter>4){ //refresh value each 5 main loop cycles
+			rpmCounter=0;
+			if(RPM!=lastRPM){   //RPM is calculated in vStepp task
+				lastRPM=RPM;
+				char* pRPM=RPMString;
+				itoa(RPM, pRPM, 10);
+				if(RPM<100)ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-80, 5, 60, 40, BLACK);
+				if(RPM<1000){ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2-25, 5, 60, 40, BLACK);}
+				else{
+					ILI9341_Draw_Rectangle( ILI9341_SCREEN_WIDTH/2+8, 5, 60, 40, BLACK);
+				}
+				ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
+				ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
 			}
-			ILI9341_Draw_Text(pRPM, ILI9341_SCREEN_WIDTH/2-110, 5, BLACK, 5, WHITE);
-			ILI9341_Draw_Text("rpm", ILI9341_SCREEN_WIDTH/2-146, 5, BLACK, 2, WHITE);
-
 		}
-
+		rpmCounter++;
 		/////////////Velocity drawing//////////////////////
 
 		//if in neutral gear draw N in GREEN
 		if(neutralState==1 && lastNeutralState==0){
+			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 150, 80, BLACK); //hide kmh value
 			ILI9341_Draw_Text("N", ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, GREEN, 10, BLACK);
 			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-80, ILI9341_SCREEN_HEIGHT/2, 45, 16, BLACK); //hide kmh text white background
 			lastVelocity=255;
@@ -478,24 +483,29 @@ void vLCDMain(void const * argument)
 			ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, 40, 16, WHITE);    //kmh white rectangle
 			ILI9341_Draw_Text("kmh", ILI9341_SCREEN_WIDTH/2-75, ILI9341_SCREEN_HEIGHT/2, BLACK, 2, WHITE);
 			lastVelocity=255;
+			velocityCounter=5;//force velocity redraw
 		}
 		lastNeutralState=neutralState;
-		// if in gear calculate and draw velocity value
-		if(neutralState==0){
-			uint8_t Velocity;
-			char* pVelocity=VelocityString;
-			if(Get_VelocityTimeAvg()==0){Velocity=0;}else{
-				Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTimeAvg()*0.0001))*3.6;} //calculate velocity
-			if(Velocity!=lastVelocity){  //if number is valid and different from last calculation convert it to string
-				itoa(Velocity, pVelocity, 10);
-				//clear last value on screen
-				if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
-				if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+		// if in gear calculate and draw velocity value each 5 main loop cycles
+		if(velocityCounter>4){
+			velocityCounter=0;
+			if(neutralState==0){
+				uint8_t Velocity;
+				char* pVelocity=VelocityString;
+				if(Get_VelocityTimeAvg()==0){Velocity=0;}else{
+					Velocity=((WheelCircumference/EncNumberOfPulses)/(Get_VelocityTimeAvg()*0.0001))*3.6;} //calculate velocity
+				if(Velocity!=lastVelocity){  //if number is valid and different from last calculation convert it to string
+					itoa(Velocity, pVelocity, 10);
+					//clear last value on screen
+					if(lastVelocity>=100 && Velocity <100){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
+					if(lastVelocity>=10 && Velocity <10){ILI9341_Draw_Rectangle(ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, 200, 80, BLACK);}
 
-				ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
-				lastVelocity=Velocity;
+					ILI9341_Draw_Text(pVelocity, ILI9341_SCREEN_WIDTH/2-30, ILI9341_SCREEN_HEIGHT/2-40, WHITE, 10, BLACK);
+					lastVelocity=Velocity;
+				}
 			}
 		}
+		velocityCounter++;
 
 
 		//Indicators drawing
@@ -509,9 +519,9 @@ void vLCDMain(void const * argument)
 		lastHighBeamState=highBeamState;
 
 		//read indicators state after drawing to show predefined state right after startup
-		if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_SET){blinkerState=1;}else{blinkerState=0;}
-		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_SET){neutralState=1;}else{neutralState=0;}
-		if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_SET){highBeamState=1;}else{highBeamState=0;}
+		if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_RESET){blinkerState=1;}else{blinkerState=0;}
+		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_RESET){neutralState=1;}else{neutralState=0;}
+		if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_RESET){highBeamState=1;}else{highBeamState=0;}
 
 		//time drawing
 		if(timeSettingMode==0){
@@ -584,7 +594,7 @@ void vLCDMain(void const * argument)
 			char* pTimeEdit=TimeStringEdit;
 			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
 
-			if(btnModeSec>3){timeSettingMode=2;btnModeSec=0;} //mode is being held for shorter time while changing mode
+			if(btnModeSec>10){timeSettingMode=2;btnModeSec=0;} //mode is being held for shorter time while changing mode
 
 		}
 
@@ -605,7 +615,7 @@ void vLCDMain(void const * argument)
 			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
 
 
-			if(btnModeSec>3){ //mode is being held for shorter time while exiting
+			if(btnModeSec>10){ //mode is being held for shorter time while exiting
 				timeSettingMode=0;
 				RTC_TimeTypeDef sTimeEdited;
 				sTimeEdited.Hours=timeSettingModeHour;
@@ -618,7 +628,7 @@ void vLCDMain(void const * argument)
 
 		}
 
-		if(btnModeSec>4){
+		if(btnModeSec>15){
 			timeSettingMode=1;
 			btnModeSec=0;
 			HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
@@ -633,7 +643,7 @@ void vLCDMain(void const * argument)
 			}
 			char* pTimeEdit=TimeStringEdit;
 			ILI9341_Draw_Text(pTimeEdit, ILI9341_SCREEN_WIDTH/2-40, 50, RED, 3, BLACK);
-			osDelay(100);
+			osDelay(200);
 
 		}
 

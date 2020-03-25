@@ -6,7 +6,7 @@ Most important values device-related are here
 #define MOTOHUD_CONFIG_H_
 
 ///////USER PARAMETERS////////////
-#define UPDATE_DELAY_MS			500     //screen refresh delay (250 - 500) bigger - slower update
+#define UPDATE_DELAY_MS			100     //screen refresh delay (100 - 500) bigger - slower update
 
 ///////SPEEDOMETER PARAMETERS/////////
 #define NUM_OF_PULSES_PER_REV	4        //number of pulses from hall sensor per 1 wheel revolution
