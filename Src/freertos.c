@@ -520,7 +520,7 @@ void vLCDMain(void const * argument)
 
 		//read indicators state after drawing to show predefined state right after startup
 		if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_RESET){blinkerState=1;}else{blinkerState=0;}
-		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_RESET){neutralState=1;}else{neutralState=0;}
+		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_SET){neutralState=1;}else{neutralState=0;}
 		if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_RESET){highBeamState=1;}else{highBeamState=0;}
 
 		//time drawing
@@ -698,15 +698,15 @@ void vStepp(void const * argument)
 		if(RPMNow>260)RPMAvgSum+=RPMNow;          //if RPM value is positive add it to average
 
 		RPMAvg_i++;
-		if(RPMAvg_i==9){					//after 10 measurements calculate average
-			RPM=RPMAvgSum/10;
+		if(RPMAvg_i==49){					//after 10 measurements calculate average
+			RPM=RPMAvgSum/50;
 			RPM=RPM/25;                    //resolution of measurement is 25 RPM
 			RPM=RPM*25;
 			RPMAvgSum=0;
 			RPMAvg_i=0;
 
 		}
-		osDelay(2); //averaged RPM value every 20ms (10*2)
+		osDelay(2); //averaged RPM value every 80ms (40*2)
 
 	}
 	/* USER CODE END vStepp */
@@ -725,17 +725,17 @@ void vStartup(void const * argument)
 
 //////Dial calibration during startup////////
 
-	RPM=4000;
-	osDelay(700);
+	//RPM=4000;
+	//osDelay(700);
 
-	RPM=8000;
-	osDelay(700);
+	//RPM=8000;
+	//osDelay(700);
 
-	RPM=12000;
-	osDelay(700);
+	//RPM=12000;
+	//osDelay(700);
 
 	RPM=15300;
-	osDelay(700);
+	osDelay(1700);
 
 
 	RPM=0;

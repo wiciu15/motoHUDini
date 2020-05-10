@@ -47,7 +47,8 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 uint32_t input_capture;
-uint32_t VelocityTime;
+uint32_t VelocityTime=0;
+uint32_t lastVelocityTime=99999;
 uint32_t VelocityAvgI=1;
 uint32_t VelocityTimeSum=0;
 uint32_t VelocityTimeAvg=1; //non-zero value because 0 means timer disabled, vehicle is stopped
@@ -271,50 +272,55 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
   */
 void EXTI9_5_IRQHandler(void)
 {
-  /* USER CODE BEGIN EXTI9_5_IRQn 0 */
-//		uint32_t pending = EXTI->PR1;
-//	    if(pending & (1 << 9)) {
+	/* USER CODE BEGIN EXTI9_5_IRQn 0 */
+	uint32_t pending = EXTI->PR;
+	if(pending & (1 << 9)) {
+		EXTI->PR = 1 << 9;
 
-//	        EXTI->PR1 = 1 << 9;
+		/* USER CODE END EXTI9_5_IRQn 0 */
+		HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
+		/* USER CODE BEGIN EXTI9_5_IRQn 1 */
 
-///////////////////////////////////VELOCITY TIME MEASUREMENT//////////////////////////
+		//need to wait few uS between interrupt request and GPIO logic level read - signal needs to be stable LOW
+		for(uint32_t i=0;i<500;i++){double l=log(sin(0.03f));}//delay in interrupt - bad idea but it works
 
-	if(__HAL_TIM_GET_COUNTER(&htim2)==0){//if timer was disabled enable it
-		__HAL_TIM_ENABLE(&htim2);
-		MotorcycleStopped=0;
-	}
-	else{
-		if(__HAL_TIM_GET_COUNTER(&htim2)>100){       //noise filter-100=10ms for 1/4 wheel rev. Max speed possible to measure = 129kmh
-			VelocityTimeSum+=__HAL_TIM_GET_COUNTER(&htim2);
-			VelocityAvgI++;
-			VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
+		///////////////////////////////////VELOCITY TIME MEASUREMENT//////////////////////////
 
-			/*if(VelocityAvgI==4){   //averaging done in Get_VelocityTimeAvg() now
-	        		VelocityTime=VelocityTimeSum/4;
-	        		VelocityTimeSum=0;
-	        		VelocityAvgI=1;
-	        	}*/
-			__HAL_TIM_SET_COUNTER(&htim2,0);
+		if(__HAL_TIM_GET_COUNTER(&htim2)==0){//if timer was disabled enable it
+			__HAL_TIM_ENABLE(&htim2);
+			MotorcycleStopped=0;
+		}
+		else{
+			if(__HAL_TIM_GET_COUNTER(&htim2)>100 && !HAL_GPIO_ReadPin(VPIN_GPIO_Port, VPIN_Pin)){       //noise filter-100=10ms for 1/4 wheel rev. Max speed possible to measure = 129kmh
+				//if(lastVelocityTime-200>=__HAL_TIM_GET_COUNTER(&htim2)||lastVelocityTime<=__HAL_TIM_GET_COUNTER(&htim2)){//acceleration rate limit
+				VelocityTimeSum+=__HAL_TIM_GET_COUNTER(&htim2);
+				VelocityAvgI++;
+				VelocityTime=__HAL_TIM_GET_COUNTER(&htim2);
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+
+				/*if(VelocityAvgI==4){   //averaging done in Get_VelocityTimeAvg() now
+				        		VelocityTime=VelocityTimeSum/4;
+				        		VelocityTimeSum=0;
+				        		VelocityAvgI=1;
+				        	}*/
+				lastVelocityTime=VelocityTime;
+				__HAL_TIM_SET_COUNTER(&htim2,0);
 
 
-			WheelSpinCounter++;
-			if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
-				WheelSpinCounter=0;
-				mileage+=(WheelCircumference*100)/1000;
-				trip+=(WheelCircumference*100)/1000;
-				//EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //can't write to EEPROM in interrupt - config_assert
-				//EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);
+				WheelSpinCounter++;
+				if(WheelSpinCounter==((100*EncNumberOfPulses)-1)){
+					WheelSpinCounter=0;
+					mileage+=(WheelCircumference*100)/1000;
+					trip+=(WheelCircumference*100)/1000;
+					//EEPROM_SPI_WriteBuffer((uint8_t*) &mileage, (uint16_t)8, (uint16_t)8);   //can't write to EEPROM in interrupt - config_assert
+					//EEPROM_SPI_WriteBuffer((uint8_t*) &trip, (uint16_t)16, (uint16_t)8);
+				}
 			}
+
 		}
 
 	}
-
-	   // }
-  /* USER CODE END EXTI9_5_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
-  /* USER CODE BEGIN EXTI9_5_IRQn 1 */
-
-  /* USER CODE END EXTI9_5_IRQn 1 */
+	/* USER CODE END EXTI9_5_IRQn 1 */
 }
 
 /**
@@ -360,7 +366,7 @@ void TIM3_IRQHandler(void)
 	/* USER CODE BEGIN TIM3_IRQn 0 */
 
 	//calculate dial position
-	uint32_t StepperPosition=RPM/26;
+	uint32_t StepperPosition=RPM/22;
 
 	if(stepsToGo!=0){
 		stepsToGo=(StepperPosition-lastPosition)+stepsToGo;
@@ -375,7 +381,7 @@ void TIM3_IRQHandler(void)
 		if(stepper_delay>STEPPER_MAX_DELAY){stepper_delay=STEPPER_MAX_DELAY;} //prevent delay from being too big
 	}
 	//DIAL ACCELERATION
-	stepperAccelDelay=lastStepperDelay-stepper_delay; //calculate chage in motor spped
+	stepperAccelDelay=lastStepperDelay-stepper_delay; //calculate change in motor spped
 	//if motor is accelerating add some delay between steps to slow it down
 	if(stepperAccelDelay>10){stepper_delay+=stepperAccelDelay;lastStepperDelay-=STEPPER_ACCELERATION;}
 	else{lastStepperDelay=stepper_delay;}
@@ -456,111 +462,110 @@ uint32_t Get_VelocityTimeAvg() {
 
 
 void StepperGoOneStep(uint32_t dir){
-	if(dir!=0){  //przeciwnie do wskazowek zegara
+	if(dir!=0){  //zgodnie z ruchem wskazowek zegara
+		switch(lastStep){
 
-		if(lastStep==2){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=1;
+		case 2:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+			lastStep=1;
+			break;
 
-		}
-		if(lastStep==3){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=2;
+		case 3:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=2;
+			break;
 
-		}
-		if(lastStep==4){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=3;
+		case 4:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=3;
+			break;
 
-		}
-		if(lastStep==5){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=4;
+		case 5:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=4;
+			break;
 
-		}
-		if(lastStep==6){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=5;
+		case 6:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=5;
+			break;
 
-		}
-		if(lastStep==1){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=6;
+		case 1:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+			lastStep=6;
+			break;
 
 		}
 	}
-	else{ //zgodnie z ruchem wzkazowek zegara
+	else{ //przeciwnie z ruchem wskazowek zegara
 
-		if(lastStep==5){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=6;
+		switch(lastStep){
 
-		}
+		case 5:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //6
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+			lastStep=6;
+			break;
 
-		if(lastStep==4){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=5;
+		case 4:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //5
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=5;
+			break;
 
-		}
+		case 3:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=4;
+			break;
 
-		if(lastStep==3){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //4
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=4;
+		case 2:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=3;
+			break;
 
-		}
+		case 1:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
+			lastStep=2;
+			break;
 
-		if(lastStep==2){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_RESET); //3
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=3;
-
-		}
-
-		if(lastStep==1){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //2
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_RESET);
-		lastStep=2;
-
-		}
-
-		if(lastStep==6){
-		HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
-		HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
-		lastStep=1;
-
+		case 6:
+			HAL_GPIO_WritePin(STEP1_GPIO_Port, STEP1_Pin, GPIO_PIN_SET); //1
+			HAL_GPIO_WritePin(STEP2_GPIO_Port, STEP2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP3_GPIO_Port, STEP3_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(STEP4_GPIO_Port, STEP4_Pin, GPIO_PIN_SET);
+			lastStep=1;
+			break;
 		}
 	}
 }
