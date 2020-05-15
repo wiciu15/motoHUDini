@@ -520,7 +520,7 @@ void vLCDMain(void const * argument)
 
 		//read indicators state after drawing to show predefined state right after startup
 		if(HAL_GPIO_ReadPin(BLINK_GPIO_Port, BLINK_Pin)==GPIO_PIN_RESET){blinkerState=1;}else{blinkerState=0;}
-		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_SET){neutralState=1;}else{neutralState=0;}
+		if(HAL_GPIO_ReadPin(NEUTRAL_GPIO_Port, NEUTRAL_Pin)==GPIO_PIN_RESET){neutralState=1;}else{neutralState=0;}
 		if(HAL_GPIO_ReadPin(HIBEAM_GPIO_Port, HIBEAM_Pin)==GPIO_PIN_RESET){highBeamState=1;}else{highBeamState=0;}
 
 		//time drawing
